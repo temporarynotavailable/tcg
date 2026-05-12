@@ -27,6 +27,9 @@ createdCards    Card[]
 
 purchaseOrders TradeOrder[] @relation("BuyerOrders")
 salesOrders    TradeOrder[] @relation("SellerOrders")
+
+givenReviews    TradeReview[] @relation("GivenReviews")
+receivedReviews TradeReview[] @relation("ReceivedReviews")
 }
 
 model Game {
@@ -287,10 +290,11 @@ model TradeOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
-  seller  User    @relation("SellerOrders", fields: [sellerId], references: [id])
-  listing Listing @relation(fields: [listingId], references: [id])
-  items   TradeOrderItem[]
+buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
+seller  User    @relation("SellerOrders", fields: [sellerId], references: [id])
+listing Listing @relation(fields: [listingId], references: [id])
+items   TradeOrderItem[]
+review  TradeReview?
 
   @@index([buyerId])
   @@index([sellerId])
@@ -313,4 +317,23 @@ model TradeOrderItem {
   @@index([orderId])
   @@index([listingItemId])
   @@index([cardVariantId])
+}
+
+model TradeReview {
+  id         String   @id @default(cuid())
+  orderId    String   @unique
+  reviewerId String
+  sellerId   String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  order    TradeOrder @relation(fields: [orderId], references: [id])
+  reviewer User       @relation("GivenReviews", fields: [reviewerId], references: [id])
+  seller   User       @relation("ReceivedReviews", fields: [sellerId], references: [id])
+
+  @@index([reviewerId])
+  @@index([sellerId])
+  @@index([rating])
 }

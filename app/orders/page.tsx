@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
+import { calculateTrustLevel, clampReputationScore } from "@/lib/trust";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,9 @@ async function updateOrderStatusAction(formData: FormData) {
     where: {
       id: orderId,
     },
+    include: {
+      seller: true,
+    },
   });
 
   if (!order) {
@@ -71,20 +75,124 @@ async function updateOrderStatusAction(formData: FormData) {
     );
   }
 
-  await prisma.tradeOrder.update({
-    where: {
-      id: order.id,
-    },
-    data: {
-      status: nextStatus,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.tradeOrder.update({
+      where: {
+        id: order.id,
+      },
+      data: {
+        status: nextStatus,
+      },
+    });
+
+    if (nextStatus === "COMPLETED") {
+      const newReputationScore = clampReputationScore(
+        order.seller.reputationScore + 5,
+      );
+
+      const newTrustLevel = calculateTrustLevel(newReputationScore);
+
+      await tx.user.update({
+        where: {
+          id: order.sellerId,
+        },
+        data: {
+          reputationScore: newReputationScore,
+          trustLevel: newTrustLevel,
+          role:
+            newTrustLevel >= 3 && order.seller.kycStatus === "VERIFIED"
+              ? "TRUSTED_MEMBER"
+              : order.seller.role,
+        },
+      });
+    }
   });
 
   revalidatePath("/orders");
   revalidatePath("/dashboard");
+  revalidatePath("/profile");
   revalidatePath("/admin");
 }
 
+async function createTradeReviewAction(formData: FormData) {
+  "use server";
+
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const ratingValue = String(formData.get("rating") ?? "").trim();
+  const comment = String(formData.get("comment") ?? "").trim();
+
+  const rating = Number(ratingValue);
+
+  if (!orderId) {
+    throw new Error("Order ID fehlt.");
+  }
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new Error("Bitte wähle eine Bewertung zwischen 1 und 5 Sternen.");
+  }
+
+  const order = await prisma.tradeOrder.findUnique({
+    where: {
+      id: orderId,
+    },
+    include: {
+      seller: true,
+      review: true,
+    },
+  });
+
+  if (!order) {
+    throw new Error("Order wurde nicht gefunden.");
+  }
+
+  if (order.status !== "COMPLETED") {
+    throw new Error("Nur abgeschlossene Orders können bewertet werden.");
+  }
+
+  if (order.review) {
+    throw new Error("Diese Order wurde bereits bewertet.");
+  }
+
+  const reputationDelta = calculateReviewReputationDelta(rating);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.tradeReview.create({
+      data: {
+        orderId: order.id,
+        reviewerId: order.buyerId,
+        sellerId: order.sellerId,
+        rating,
+        comment: comment || null,
+      },
+    });
+
+    const newReputationScore = clampReputationScore(
+      order.seller.reputationScore + reputationDelta,
+    );
+
+    const newTrustLevel = calculateTrustLevel(newReputationScore);
+
+    await tx.user.update({
+      where: {
+        id: order.sellerId,
+      },
+      data: {
+        reputationScore: newReputationScore,
+        trustLevel: newTrustLevel,
+        role: getRoleAfterReputationUpdate({
+          currentRole: order.seller.role,
+          kycStatus: order.seller.kycStatus,
+          trustLevel: newTrustLevel,
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/orders");
+  revalidatePath("/dashboard");
+  revalidatePath("/profile");
+  revalidatePath("/admin");
+}
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
@@ -199,7 +307,41 @@ function getNextActions(status: string) {
 
   return [];
 }
+function calculateReviewReputationDelta(rating: number) {
+  if (rating === 5) return 2;
+  if (rating === 4) return 1;
+  if (rating === 3) return 0;
+  if (rating === 2) return -2;
+  return -5;
+}
 
+function getRoleAfterReputationUpdate(input: {
+  currentRole: string;
+  kycStatus: string;
+  trustLevel: number;
+}) {
+  if (input.currentRole === "ADMIN" || input.currentRole === "MODERATOR") {
+    return input.currentRole;
+  }
+
+  if (input.trustLevel >= 3 && input.kycStatus === "VERIFIED") {
+    return "TRUSTED_MEMBER";
+  }
+
+  if (input.kycStatus === "VERIFIED") {
+    return "VERIFIED_USER";
+  }
+
+  return "BASIC_USER";
+}
+
+function getRatingLabel(rating: number) {
+  if (rating === 5) return "Exzellent";
+  if (rating === 4) return "Sehr gut";
+  if (rating === 3) return "Okay";
+  if (rating === 2) return "Problematisch";
+  return "Schlecht";
+}
 function getProgressPercent(status: string) {
   const map: Record<string, number> = {
     CREATED: 25,
@@ -280,30 +422,31 @@ function OrderStatusStepper({ status }: { status: string }) {
 }
 
 export default async function OrdersPage() {
-  const orders = await prisma.tradeOrder.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      buyer: true,
-      seller: true,
-      listing: true,
-      items: {
-        include: {
-          cardVariant: {
-            include: {
-              card: {
-                include: {
-                  game: true,
-                  set: true,
-                },
+const orders = await prisma.tradeOrder.findMany({
+  orderBy: {
+    createdAt: "desc",
+  },
+  include: {
+    buyer: true,
+    seller: true,
+    listing: true,
+    review: true,
+    items: {
+      include: {
+        cardVariant: {
+          include: {
+            card: {
+              include: {
+                game: true,
+                set: true,
               },
             },
           },
         },
       },
     },
-  });
+  },
+});
 
   const createdOrders = orders.filter((order) => order.status === "CREATED").length;
   const paidOrders = orders.filter((order) => order.status === "PAID").length;
@@ -481,9 +624,82 @@ export default async function OrdersPage() {
                               <OrderStatusStepper status={order.status} />
                             </div>
 
-                            <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                              {getStatusDescription(order.status)}
-                            </div>
+<div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+  {getStatusDescription(order.status)}
+
+  {order.status === "COMPLETED" && (
+    <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
+      Verkäufer-Reputation wurde für diese abgeschlossene Order erhöht.
+    </div>
+  )}
+</div>
+
+{order.status === "COMPLETED" && (
+  <div className="mt-5 rounded-2xl border bg-white p-4">
+    {order.review ? (
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium">Bewertung abgegeben</p>
+
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+            {order.review.rating}/5 · {getRatingLabel(order.review.rating)}
+          </Badge>
+        </div>
+
+        {order.review.comment && (
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {order.review.comment}
+          </p>
+        )}
+
+        <p className="mt-3 text-xs text-slate-500">
+          Diese Bewertung wurde in die Verkäufer-Reputation einbezogen.
+        </p>
+      </div>
+    ) : (
+      <form action={createTradeReviewAction} className="space-y-4">
+        <input type="hidden" name="orderId" value={order.id} />
+
+        <div>
+          <p className="font-medium">Verkäufer bewerten</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Deine Bewertung beeinflusst die Reputation von{" "}
+            {order.seller.displayName ?? order.seller.username}.
+          </p>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">Bewertung</label>
+          <select
+            name="rating"
+            defaultValue="5"
+            className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="5">5 Sterne · Exzellent</option>
+            <option value="4">4 Sterne · Sehr gut</option>
+            <option value="3">3 Sterne · Okay</option>
+            <option value="2">2 Sterne · Problematisch</option>
+            <option value="1">1 Stern · Schlecht</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">Kommentar</label>
+          <textarea
+            name="comment"
+            className="mt-2 min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+            placeholder="z.B. schnelle Lieferung, gute Verpackung, Zustand wie beschrieben..."
+          />
+        </div>
+
+        <Button type="submit">
+          <Star className="mr-2 h-4 w-4" />
+          Bewertung speichern
+        </Button>
+      </form>
+    )}
+  </div>
+)}
 
                             <div className="mt-5 space-y-2">
                               {order.items.map((item) => (
