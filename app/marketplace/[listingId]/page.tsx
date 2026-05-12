@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
   BarChart3,
@@ -29,6 +30,125 @@ type ListingDetailPageProps = {
     listingId: string;
   }>;
 };
+
+async function buyListingAction(formData: FormData) {
+  "use server";
+
+  const listingId = String(formData.get("listingId") ?? "").trim();
+
+  if (!listingId) {
+    throw new Error("Listing ID fehlt.");
+  }
+
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+    include: {
+      seller: true,
+      items: {
+        include: {
+          cardVariant: {
+            include: {
+              card: {
+                include: {
+                  game: true,
+                  set: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!listing) {
+    throw new Error("Listing wurde nicht gefunden.");
+  }
+
+  if (listing.status !== "ACTIVE") {
+    throw new Error("Dieses Listing ist nicht mehr aktiv.");
+  }
+
+  const buyer = await prisma.user.upsert({
+    where: {
+      email: "buyer@tcgnexus.local",
+    },
+    update: {},
+    create: {
+      email: "buyer@tcgnexus.local",
+      username: "PlayerOne",
+      displayName: "PlayerOne",
+      role: "VERIFIED_USER",
+      kycStatus: "VERIFIED",
+      reputationScore: 72,
+      trustLevel: 2,
+    },
+  });
+
+  if (buyer.id === listing.sellerId) {
+    throw new Error("Du kannst dein eigenes Listing nicht kaufen.");
+  }
+
+  const existingOrder = await prisma.tradeOrder.findUnique({
+    where: {
+      listingId: listing.id,
+    },
+  });
+
+  if (existingOrder) {
+    redirect("/orders");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.tradeOrder.create({
+      data: {
+        buyerId: buyer.id,
+        sellerId: listing.sellerId,
+        listingId: listing.id,
+        status: "CREATED",
+        total: listing.price,
+        currency: listing.currency,
+        items: {
+          create:
+            listing.items.length > 0
+              ? listing.items.map((item) => ({
+                  listingItemId: item.id,
+                  cardVariantId: item.cardVariantId,
+                  title: item.cardVariant.card.name,
+                  quantity: item.quantity,
+                  unitPrice: listing.price / listing.items.length,
+                }))
+              : [
+                  {
+                    title: listing.title,
+                    quantity: 1,
+                    unitPrice: listing.price,
+                  },
+                ],
+        },
+      },
+    });
+
+    await tx.listing.update({
+      where: {
+        id: listing.id,
+      },
+      data: {
+        status: "SOLD",
+      },
+    });
+  });
+
+  revalidatePath("/marketplace");
+  revalidatePath(`/marketplace/${listing.id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/orders");
+  revalidatePath("/admin");
+
+  redirect("/orders");
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("de-DE", {
@@ -163,7 +283,10 @@ export default async function ListingDetailPage({
   }
 
   const ListingTypeIcon = getListingTypeIcon(listing.listingType);
-  const trustLabel = getTrustLabel(listing.seller.role, listing.seller.kycStatus);
+  const trustLabel = getTrustLabel(
+    listing.seller.role,
+    listing.seller.kycStatus,
+  );
   const sellerRating = getSellerRating(listing.seller.reputationScore);
   const riskReasons = getRiskReasons(listing.riskReasons);
 
@@ -182,7 +305,8 @@ export default async function ListingDetailPage({
   const averagePlayRating =
     playRatings.length === 0
       ? 0
-      : playRatings.reduce((sum, rating) => sum + rating, 0) / playRatings.length;
+      : playRatings.reduce((sum, rating) => sum + rating, 0) /
+        playRatings.length;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
@@ -280,12 +404,29 @@ export default async function ListingDetailPage({
                   </div>
 
                   <div className="flex gap-3">
-                    <Button variant="secondary">
-                      <ShoppingBag className="mr-2 h-4 w-4" />
-                      Kaufen
-                    </Button>
+                    <form action={buyListingAction}>
+                      <input
+                        type="hidden"
+                        name="listingId"
+                        value={listing.id}
+                      />
 
-                    <Button variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white">
+                      <Button
+                        variant="secondary"
+                        type="submit"
+                        disabled={listing.status !== "ACTIVE"}
+                      >
+                        <ShoppingBag className="mr-2 h-4 w-4" />
+                        {listing.status === "ACTIVE"
+                          ? "Kaufen"
+                          : "Nicht verfügbar"}
+                      </Button>
+                    </form>
+
+                    <Button
+                      variant="outline"
+                      className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                    >
                       Verkäufer kontaktieren
                     </Button>
                   </div>
@@ -339,7 +480,8 @@ export default async function ListingDetailPage({
                       Verification & Risk
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Risk Score wird automatisch beim Erstellen des Listings berechnet.
+                      Risk Score wird automatisch beim Erstellen des Listings
+                      berechnet.
                     </p>
                   </div>
 
@@ -407,12 +549,15 @@ export default async function ListingDetailPage({
 
                           <div className="mt-2 flex flex-wrap gap-2">
                             <Badge variant="outline">{variant.language}</Badge>
+
                             {variant.finish && (
                               <Badge variant="outline">{variant.finish}</Badge>
                             )}
+
                             <Badge variant="outline">
                               {formatCondition(item.condition)}
                             </Badge>
+
                             {playRating > 0 && (
                               <Badge variant="outline">
                                 Play Rating {playRating.toFixed(1)}
@@ -464,7 +609,9 @@ export default async function ListingDetailPage({
 
                   <div className="mt-5 grid gap-3">
                     <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
-                      <span className="text-sm text-slate-500">Estimated Value</span>
+                      <span className="text-sm text-slate-500">
+                        Estimated Value
+                      </span>
                       <span className="font-semibold">
                         {listing.binderSale.estimatedValue
                           ? formatCurrency(listing.binderSale.estimatedValue)
@@ -473,14 +620,18 @@ export default async function ListingDetailPage({
                     </div>
 
                     <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
-                      <span className="text-sm text-slate-500">Detected Cards</span>
+                      <span className="text-sm text-slate-500">
+                        Detected Cards
+                      </span>
                       <span className="font-semibold">
                         {listing.binderSale.detectedCardCount}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
-                      <span className="text-sm text-slate-500">Confirmed Cards</span>
+                      <span className="text-sm text-slate-500">
+                        Confirmed Cards
+                      </span>
                       <span className="font-semibold">
                         {listing.binderSale.confirmedCardCount}
                       </span>
@@ -499,8 +650,8 @@ export default async function ListingDetailPage({
                 <h2 className="text-xl font-semibold">Price Intelligence</h2>
 
                 <p className="mt-2 leading-7 text-slate-300">
-                  Später werden hier interne Verkäufe, eBay Last Solds, TCGplayer,
-                  SNKRDUNK und weitere Quellen als Chart kombiniert.
+                  Später werden hier interne Verkäufe, eBay Last Solds,
+                  TCGplayer, SNKRDUNK und weitere Quellen als Chart kombiniert.
                 </p>
 
                 <div className="mt-5 space-y-3">
@@ -521,7 +672,9 @@ export default async function ListingDetailPage({
                   <div className="flex items-center justify-between rounded-2xl bg-white/10 p-4">
                     <span className="text-sm text-slate-300">Ø Play Rating</span>
                     <span className="font-semibold">
-                      {averagePlayRating > 0 ? averagePlayRating.toFixed(1) : "—"}
+                      {averagePlayRating > 0
+                        ? averagePlayRating.toFixed(1)
+                        : "—"}
                     </span>
                   </div>
                 </div>
@@ -539,7 +692,10 @@ export default async function ListingDetailPage({
                     "Risk Score berechnet",
                     "Listing kann durch Admin geprüft werden",
                   ].map((item) => (
-                    <div key={item} className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
+                    <div
+                      key={item}
+                      className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4"
+                    >
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <span className="text-sm">{item}</span>
                     </div>

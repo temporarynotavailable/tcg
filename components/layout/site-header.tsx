@@ -6,6 +6,7 @@ import {
   Boxes,
   LayoutDashboard,
   Menu,
+  ReceiptText,
   Search,
   ShieldCheck,
   ShoppingBag,
@@ -38,12 +39,17 @@ const navItems = [
     label: "Decks",
     icon: Trophy,
   },
-  {
-    href: "/sell",
-    label: "Sell",
-    icon: ShoppingBag,
-  },
-  {
+{
+  href: "/sell",
+  label: "Sell",
+  icon: ShoppingBag,
+},
+{
+  href: "/orders",
+  label: "Orders",
+  icon: ReceiptText,
+},
+{
   href: "/profile",
   label: "Profile",
   icon: User,

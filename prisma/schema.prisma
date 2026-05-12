@@ -20,10 +20,13 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  collectionItems CollectionItem[]
-  listings        Listing[]
-  decks           Deck[]
-  createdCards    Card[]
+collectionItems CollectionItem[]
+listings        Listing[]
+decks           Deck[]
+createdCards    Card[]
+
+purchaseOrders TradeOrder[] @relation("BuyerOrders")
+salesOrders    TradeOrder[] @relation("SellerOrders")
 }
 
 model Game {
@@ -88,10 +91,11 @@ model CardVariant {
   createdAt   DateTime @default(now())
 
   card            Card             @relation(fields: [cardId], references: [id])
-  collectionItems CollectionItem[]
-  listingItems    ListingItem[]
-  deckCards       DeckCard[]
-  priceSnapshots  PriceSnapshot[]
+collectionItems CollectionItem[]
+listingItems    ListingItem[]
+deckCards       DeckCard[]
+priceSnapshots  PriceSnapshot[]
+orderItems      TradeOrderItem[]
 
   @@index([cardId])
 }
@@ -130,9 +134,10 @@ model Listing {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  seller     User          @relation(fields: [sellerId], references: [id])
-  items      ListingItem[]
-  binderSale BinderSale?
+seller     User          @relation(fields: [sellerId], references: [id])
+items      ListingItem[]
+binderSale BinderSale?
+order      TradeOrder?
 
 @@index([sellerId])
 @@index([listingType])
@@ -148,8 +153,9 @@ model ListingItem {
   condition     String
   language      String?
 
-  listing     Listing     @relation(fields: [listingId], references: [id])
-  cardVariant CardVariant @relation(fields: [cardVariantId], references: [id])
+listing     Listing          @relation(fields: [listingId], references: [id])
+cardVariant CardVariant      @relation(fields: [cardVariantId], references: [id])
+orderItems  TradeOrderItem[]
 
   @@index([listingId])
   @@index([cardVariantId])
@@ -268,4 +274,43 @@ model CardPlayRating {
 
   @@index([cardId])
   @@index([gameId])
+}
+
+model TradeOrder {
+  id        String   @id @default(cuid())
+  buyerId   String
+  sellerId  String
+  listingId String   @unique
+  status    String   @default("CREATED")
+  total     Float
+  currency  String   @default("EUR")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller  User    @relation("SellerOrders", fields: [sellerId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id])
+  items   TradeOrderItem[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+}
+
+model TradeOrderItem {
+  id            String @id @default(cuid())
+  orderId       String
+  listingItemId String?
+  cardVariantId String?
+  title         String
+  quantity      Int    @default(1)
+  unitPrice     Float
+
+  order       TradeOrder  @relation(fields: [orderId], references: [id])
+  listingItem ListingItem? @relation(fields: [listingItemId], references: [id])
+  cardVariant CardVariant? @relation(fields: [cardVariantId], references: [id])
+
+  @@index([orderId])
+  @@index([listingItemId])
+  @@index([cardVariantId])
 }
