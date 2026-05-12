@@ -5,10 +5,14 @@ import {
   BarChart3,
   Bot,
   Boxes,
+  CheckCircle2,
   CreditCard,
+  PackageCheck,
+  ReceiptText,
   ShieldCheck,
   ShoppingBag,
   Trophy,
+  Truck,
 } from "lucide-react";
 
 import { SiteHeader } from "@/components/layout/site-header";
@@ -42,7 +46,29 @@ function getTrustStatus(role?: string | null, kycStatus?: string | null) {
   if (kycStatus === "VERIFIED") return "Verified";
   return "Basic";
 }
+function getOrderStatusBadgeClass(status: string) {
+  if (status === "CREATED") {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
 
+  if (status === "PAID") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "SHIPPED") {
+    return "border-purple-200 bg-purple-50 text-purple-700";
+  }
+
+  if (status === "COMPLETED") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "CANCELLED") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  return "border-slate-200 bg-white text-slate-700";
+}
 export default async function DashboardPage() {
   const user = await prisma.user.findFirst({
     orderBy: {
@@ -92,17 +118,42 @@ export default async function DashboardPage() {
     },
   });
 
-  const decks = await prisma.deck.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      game: true,
-      cards: true,
-    },
-  });
+const decks = await prisma.deck.findMany({
+  orderBy: {
+    createdAt: "desc",
+  },
+  include: {
+    game: true,
+    cards: true,
+  },
+});
 
-  const priceSourceCount = await prisma.priceSource.count();
+const orders = await prisma.tradeOrder.findMany({
+  orderBy: {
+    createdAt: "desc",
+  },
+  include: {
+    buyer: true,
+    seller: true,
+    listing: true,
+    items: {
+      include: {
+        cardVariant: {
+          include: {
+            card: {
+              include: {
+                game: true,
+                set: true,
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+});
+
+const priceSourceCount = await prisma.priceSource.count();
 
   const totalCards = collectionItems.reduce(
     (sum, item) => sum + item.quantity,
@@ -120,7 +171,43 @@ export default async function DashboardPage() {
     (sum, listing) => sum + listing.price,
     0,
   );
+const orderVolume = orders.reduce((sum, order) => sum + order.total, 0);
 
+const createdOrders = orders.filter(
+  (order) => order.status === "CREATED",
+).length;
+
+const paidOrders = orders.filter(
+  (order) => order.status === "PAID",
+).length;
+
+const shippedOrders = orders.filter(
+  (order) => order.status === "SHIPPED",
+).length;
+
+const completedOrders = orders.filter(
+  (order) => order.status === "COMPLETED",
+).length;
+
+const openOrders = orders.filter((order) =>
+  ["CREATED", "PAID", "SHIPPED"].includes(order.status),
+).length;
+
+const recentOrders = orders.slice(0, 3).map((order) => {
+  const firstItem = order.items[0];
+  const firstCard = firstItem?.cardVariant?.card;
+
+  return {
+    id: order.id,
+    listingId: order.listingId,
+    title: order.listing.title,
+    status: order.status,
+    total: order.total,
+    buyer: order.buyer.displayName ?? order.buyer.username,
+    seller: order.seller.displayName ?? order.seller.username,
+    imageUrl: firstCard?.imageUrl ?? null,
+  };
+});
   const playRatings = collectionItems
     .map((item) => item.cardVariant.card.playRatings[0]?.rating)
     .filter((rating): rating is number => typeof rating === "number");
@@ -152,34 +239,34 @@ return {
 };
   });
 
-  const stats = [
-    {
-      label: "Portfolio Value",
-      value: formatCurrency(totalCollectionValue),
-      change: `${priceSourceCount} Preisquellen vorbereitet`,
-      icon: BarChart3,
-    },
-    {
-      label: "Cards in Collection",
-      value: String(totalCards),
-      change: `${collectionItems.length} Collection Items`,
-      icon: Boxes,
-    },
-    {
-      label: "Trust Status",
-      value: trustStatus,
-      change: user
-        ? `Reputation ${user.reputationScore} · Level ${user.trustLevel}`
-        : "Kein Demo-User gefunden",
-      icon: ShieldCheck,
-    },
-    {
-      label: "Active Listings",
-      value: String(activeListings.length),
-      change: `${formatCurrency(listingValue)} listed`,
-      icon: ShoppingBag,
-    },
-  ];
+const stats = [
+  {
+    label: "Portfolio Value",
+    value: formatCurrency(totalCollectionValue),
+    change: `${priceSourceCount} Preisquellen vorbereitet`,
+    icon: BarChart3,
+  },
+  {
+    label: "Cards in Collection",
+    value: String(totalCards),
+    change: `${collectionItems.length} Collection Items`,
+    icon: Boxes,
+  },
+  {
+    label: "Trust Status",
+    value: trustStatus,
+    change: user
+      ? `Reputation ${user.reputationScore} · Level ${user.trustLevel}`
+      : "Kein Demo-User gefunden",
+    icon: ShieldCheck,
+  },
+  {
+    label: "Open Orders",
+    value: String(openOrders),
+    change: `${formatCurrency(orderVolume)} Order Volume`,
+    icon: ReceiptText,
+  },
+];
 
   const actions = [
     {
@@ -409,39 +496,133 @@ return {
           })}
         </div>
 
-        <div className="mt-8 grid gap-5 md:grid-cols-3">
-          <Card className="rounded-3xl">
-            <CardContent className="p-6">
-              <p className="text-sm text-slate-500">Decks</p>
-              <p className="mt-2 text-3xl font-semibold">{decks.length}</p>
-              <p className="mt-4 text-sm text-slate-500">
-                Deck Builder ist mit der Deck-Tabelle verbunden.
-              </p>
-            </CardContent>
-          </Card>
+<div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+  <Card className="rounded-3xl">
+    <CardContent className="p-6">
+      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+        <ReceiptText className="h-5 w-5" />
+      </div>
 
-          <Card className="rounded-3xl">
-            <CardContent className="p-6">
-              <p className="text-sm text-slate-500">Aktive Verkäufe</p>
-              <p className="mt-2 text-3xl font-semibold">
-                {activeListings.length}
-              </p>
-              <p className="mt-4 text-sm text-slate-500">
-                Aus der Listing-Tabelle mit Status ACTIVE.
-              </p>
-            </CardContent>
-          </Card>
+      <p className="text-sm text-slate-500">Created Orders</p>
+      <p className="mt-2 text-3xl font-semibold">{createdOrders}</p>
+      <p className="mt-4 text-sm text-slate-500">
+        Warten auf Zahlung
+      </p>
+    </CardContent>
+  </Card>
 
-          <Card className="rounded-3xl bg-slate-950 text-white">
-            <CardContent className="p-6">
-              <p className="text-sm text-slate-400">Trust Layer</p>
-              <p className="mt-2 text-3xl font-semibold">{trustStatus}</p>
-              <p className="mt-4 text-sm text-slate-400">
-                Rollen, KYC und Reputation sind bereit für den nächsten Schritt.
+  <Card className="rounded-3xl">
+    <CardContent className="p-6">
+      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+        <CreditCard className="h-5 w-5" />
+      </div>
+
+      <p className="text-sm text-slate-500">Paid Orders</p>
+      <p className="mt-2 text-3xl font-semibold">{paidOrders}</p>
+      <p className="mt-4 text-sm text-slate-500">
+        Zahlung simuliert
+      </p>
+    </CardContent>
+  </Card>
+
+  <Card className="rounded-3xl">
+    <CardContent className="p-6">
+      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-50 text-purple-700">
+        <Truck className="h-5 w-5" />
+      </div>
+
+      <p className="text-sm text-slate-500">Shipped Orders</p>
+      <p className="mt-2 text-3xl font-semibold">{shippedOrders}</p>
+      <p className="mt-4 text-sm text-slate-500">
+        Versand bestätigt
+      </p>
+    </CardContent>
+  </Card>
+
+  <Card className="rounded-3xl bg-slate-950 text-white">
+    <CardContent className="p-6">
+      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10">
+        <CheckCircle2 className="h-5 w-5" />
+      </div>
+
+      <p className="text-sm text-slate-400">Completed</p>
+      <p className="mt-2 text-3xl font-semibold">{completedOrders}</p>
+      <p className="mt-4 text-sm text-slate-400">
+        Abgeschlossene Trades
+      </p>
+    </CardContent>
+  </Card>
+</div>
+<Card className="mt-8 rounded-3xl">
+  <CardContent className="p-6">
+    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+      <div>
+        <h2 className="text-xl font-semibold">Recent Orders</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Die letzten Käufe aus TradeOrder und TradeOrderItem.
+        </p>
+      </div>
+
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/orders">Alle Bestellungen ansehen</Link>
+      </Button>
+    </div>
+
+    <div className="mt-6 space-y-4">
+      {recentOrders.map((order) => (
+        <div
+          key={order.id}
+          className="flex flex-col justify-between gap-4 rounded-3xl border bg-white p-4 md:flex-row md:items-center"
+        >
+          <div className="flex items-center gap-4">
+            <CardImagePreview
+              src={order.imageUrl}
+              alt={order.title}
+              className="h-20 w-14 rounded-xl"
+            >
+              <PackageCheck className="h-5 w-5 text-slate-400" />
+            </CardImagePreview>
+
+            <div>
+              <p className="font-medium">{order.title}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Käufer {order.buyer} · Verkäufer {order.seller}
               </p>
-            </CardContent>
-          </Card>
+
+              <div className="mt-2">
+                <Badge
+                  variant="outline"
+                  className={getOrderStatusBadgeClass(order.status)}
+                >
+                  {order.status}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 md:text-right">
+            <div>
+              <p className="font-semibold">{formatCurrency(order.total)}</p>
+              <p className="text-xs text-slate-500">Order Value</p>
+            </div>
+
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/marketplace/${order.listingId}`}>
+                Listing
+              </Link>
+            </Button>
+          </div>
         </div>
+      ))}
+
+      {recentOrders.length === 0 && (
+        <div className="rounded-3xl border bg-white px-6 py-12 text-center text-slate-500">
+          Noch keine Bestellungen vorhanden.
+        </div>
+      )}
+    </div>
+  </CardContent>
+</Card>
       </section>
     </main>
   );
