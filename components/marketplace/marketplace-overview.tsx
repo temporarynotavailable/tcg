@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CardImagePreview } from "@/components/cards/card-image-preview";
 import { useMemo, useState } from "react";
 import {
@@ -312,10 +313,13 @@ export function MarketplaceOverview({ listings }: MarketplaceOverviewProps) {
                     </div>
 
                     <div className="mt-5 flex gap-3">
-                      <Button className="flex-1">Details ansehen</Button>
-                      <Button variant="outline" className="flex-1">
-                        Merken
-                      </Button>
+<Button className="flex-1" asChild>
+  <Link href={`/marketplace/${listing.id}`}>Details ansehen</Link>
+</Button>
+
+<Button variant="outline" className="flex-1">
+  Merken
+</Button>
                     </div>
                   </CardContent>
                 </Card>
