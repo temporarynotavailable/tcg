@@ -48,14 +48,26 @@ export async function addCollectionItemAction(formData: FormData) {
   if (!user) {
     throw new Error("Demo-User CardVault wurde nicht gefunden. Bitte Seed erneut ausführen.");
   }
+const cardVariant = await prisma.cardVariant.findUnique({
+  where: {
+    id: cardVariantId,
+  },
+  include: {
+    card: true,
+  },
+});
 
-  const existingItem = await prisma.collectionItem.findFirst({
-    where: {
-      userId: user.id,
-      cardVariantId,
-      condition,
-    },
-  });
+if (!cardVariant) {
+  throw new Error("Kartenvariante wurde nicht gefunden.");
+}
+const existingItem = await prisma.collectionItem.findFirst({
+  where: {
+    userId: user.id,
+    cardVariantId,
+    condition,
+    gameId: cardVariant.card.gameId,
+  },
+});
 
   if (existingItem) {
     await prisma.collectionItem.update({
@@ -69,11 +81,12 @@ export async function addCollectionItemAction(formData: FormData) {
       },
     });
   } else {
-    await prisma.collectionItem.create({
-      data: {
-        userId: user.id,
-        cardVariantId,
-        quantity,
+await prisma.collectionItem.create({
+  data: {
+    userId: user.id,
+    cardVariantId,
+    gameId: cardVariant.card.gameId,
+    quantity,
         condition,
         acquiredPrice: acquiredPrice > 0 ? acquiredPrice : null,
         notes: notes || null,

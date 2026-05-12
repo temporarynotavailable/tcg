@@ -40,9 +40,12 @@ model Game {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  sets  CardSet[]
-  cards Card[]
-  decks Deck[]
+  sets            CardSet[]
+  cards           Card[]
+  decks           Deck[]
+  collectionItems CollectionItem[]
+  listings        Listing[]
+  orders          TradeOrder[]
 }
 
 model CardSet {
@@ -107,6 +110,7 @@ model CollectionItem {
   id            String   @id @default(cuid())
   userId        String
   cardVariantId String
+  gameId        String?
   quantity      Int      @default(1)
   condition     String
   acquiredPrice Float?
@@ -117,14 +121,17 @@ model CollectionItem {
 
   user        User        @relation(fields: [userId], references: [id])
   cardVariant CardVariant @relation(fields: [cardVariantId], references: [id])
+  game        Game?       @relation(fields: [gameId], references: [id])
 
   @@index([userId])
   @@index([cardVariantId])
+  @@index([gameId])
 }
 
 model Listing {
   id          String   @id @default(cuid())
   sellerId    String
+  gameId      String?
   listingType String
   title       String
   description String?
@@ -137,15 +144,17 @@ model Listing {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-seller     User          @relation(fields: [sellerId], references: [id])
-items      ListingItem[]
-binderSale BinderSale?
-order      TradeOrder?
+  seller     User          @relation(fields: [sellerId], references: [id])
+  game       Game?         @relation(fields: [gameId], references: [id])
+  items      ListingItem[]
+  binderSale BinderSale?
+  order      TradeOrder?
 
-@@index([sellerId])
-@@index([listingType])
-@@index([status])
-@@index([riskLevel])
+  @@index([sellerId])
+  @@index([gameId])
+  @@index([listingType])
+  @@index([status])
+  @@index([riskLevel])
 }
 
 model ListingItem {
@@ -284,20 +293,23 @@ model TradeOrder {
   buyerId   String
   sellerId  String
   listingId String   @unique
+  gameId    String?
   status    String   @default("CREATED")
   total     Float
   currency  String   @default("EUR")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
-seller  User    @relation("SellerOrders", fields: [sellerId], references: [id])
-listing Listing @relation(fields: [listingId], references: [id])
-items   TradeOrderItem[]
-review  TradeReview?
+  buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller  User    @relation("SellerOrders", fields: [sellerId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id])
+  game    Game?   @relation(fields: [gameId], references: [id])
+  items   TradeOrderItem[]
+  review  TradeReview?
 
   @@index([buyerId])
   @@index([sellerId])
+  @@index([gameId])
   @@index([status])
 }
 

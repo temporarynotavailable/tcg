@@ -1,8 +1,16 @@
 import { CollectionOverview } from "@/components/collection/collection-overview";
+import { GameSwitcher } from "@/components/games/game-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
+import { getAvailableGames, getSelectedGame } from "@/lib/game-scope";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+type CollectionPageProps = {
+  searchParams?: Promise<{
+    game?: string;
+  }>;
+};
 
 function getTrendFromMetadata(metadata: string | null) {
   if (!metadata) return "—";
@@ -22,8 +30,17 @@ function getCardStatus(playRating: number) {
   return "Collector card";
 }
 
-export default async function CollectionPage() {
+export default async function CollectionPage({
+  searchParams,
+}: CollectionPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const selectedGame = await getSelectedGame(resolvedSearchParams);
+  const games = await getAvailableGames();
+
   const collectionItems = await prisma.collectionItem.findMany({
+    where: {
+      gameId: selectedGame.id,
+    },
     orderBy: {
       createdAt: "desc",
     },
@@ -82,6 +99,15 @@ export default async function CollectionPage() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
       <SiteHeader />
+
+      <section className="mx-auto max-w-7xl px-6 pt-8">
+        <GameSwitcher
+          games={games}
+          selectedGame={selectedGame}
+          pathname="/collection"
+        />
+      </section>
+
       <CollectionOverview cards={cards} />
     </main>
   );

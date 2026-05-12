@@ -39,6 +39,7 @@ export async function createListingAction(formData: FormData) {
   const listingType = mapListingType(formData.get("listingType"));
   const price = parsePrice(formData.get("price"));
   const cardVariantId = String(formData.get("cardVariantId") ?? "").trim();
+  const selectedGameId = String(formData.get("gameId") ?? "").trim();
 
   if (!title) {
     throw new Error("Titel fehlt.");
@@ -66,11 +67,25 @@ export async function createListingAction(formData: FormData) {
     reputationScore: seller.reputationScore,
     trustLevel: seller.trustLevel,
   });
+let gameId: string | null = selectedGameId || null;
 
+if (!gameId && cardVariantId) {
+  const cardVariant = await prisma.cardVariant.findUnique({
+    where: {
+      id: cardVariantId,
+    },
+    include: {
+      card: true,
+    },
+  });
+
+  gameId = cardVariant?.card.gameId ?? null;
+}
   await prisma.listing.create({
-    data: {
-      sellerId: seller.id,
-      listingType,
+data: {
+  sellerId: seller.id,
+  gameId,
+  listingType,
       title,
       description,
       price,

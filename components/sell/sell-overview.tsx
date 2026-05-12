@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 
 type CardOption = {
   id: string;
+  gameId: string;
   label: string;
 };
 
@@ -219,7 +220,11 @@ export function SellOverview({ cardOptions }: SellOverviewProps) {
               className="grid gap-6 bg-white p-6 lg:grid-cols-[1fr_0.8fr]"
             >
               <input type="hidden" name="listingType" value={selectedType.id} />
-
+<input
+  type="hidden"
+  name="gameId"
+  value={cardOptions[0]?.gameId ?? ""}
+/>
               <div>
                 <h3 className="text-lg font-semibold">Listing Details</h3>
 

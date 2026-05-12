@@ -1,8 +1,16 @@
+import { GameSwitcher } from "@/components/games/game-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
 import { MarketplaceOverview } from "@/components/marketplace/marketplace-overview";
+import { getAvailableGames, getSelectedGame } from "@/lib/game-scope";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+type MarketplacePageProps = {
+  searchParams?: Promise<{
+    game?: string;
+  }>;
+};
 
 function formatListingType(type: string) {
   const map: Record<string, string> = {
@@ -68,7 +76,9 @@ function getListingMeta(listing: {
 }
 
 function getGameName(listing: {
-  listingType: string;
+  game: {
+    name: string;
+  } | null;
   items: {
     cardVariant: {
       card: {
@@ -79,25 +89,33 @@ function getGameName(listing: {
     };
   }[];
 }) {
+  if (listing.game?.name) return listing.game.name;
+
   const firstGame = listing.items[0]?.cardVariant.card.game.name;
 
   if (firstGame) return firstGame;
 
-  if (listing.listingType === "BINDER") return "Mixed TCG";
-
   return "Unknown";
 }
 
-export default async function MarketplacePage() {
+export default async function MarketplacePage({
+  searchParams,
+}: MarketplacePageProps) {
+  const resolvedSearchParams = await searchParams;
+  const selectedGame = await getSelectedGame(resolvedSearchParams);
+  const games = await getAvailableGames();
+
   const listings = await prisma.listing.findMany({
     where: {
       status: "ACTIVE",
+      gameId: selectedGame.id,
     },
     orderBy: {
       createdAt: "desc",
     },
     include: {
       seller: true,
+      game: true,
       binderSale: true,
       items: {
         include: {
@@ -144,6 +162,15 @@ export default async function MarketplacePage() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
       <SiteHeader />
+
+      <section className="mx-auto max-w-7xl px-6 pt-8">
+        <GameSwitcher
+          games={games}
+          selectedGame={selectedGame}
+          pathname="/marketplace"
+        />
+      </section>
+
       <MarketplaceOverview listings={marketplaceListings} />
     </main>
   );

@@ -24,12 +24,13 @@ export default async function SellPage() {
     },
   });
 
-  const cardOptions = cardVariants.map((variant) => ({
-    id: variant.id,
-    label: `${variant.card.name} · ${variant.card.game.name} · ${
-      variant.card.set?.name ?? "Unknown Set"
-    } · ${variant.language}${variant.finish ? ` · ${variant.finish}` : ""}`,
-  }));
+const cardOptions = cardVariants.map((variant) => ({
+  id: variant.id,
+  gameId: variant.card.gameId,
+  label: `${variant.card.name} · ${variant.card.game.name} · ${
+    variant.card.set?.name ?? "Unknown Set"
+  } · ${variant.language}${variant.finish ? ` · ${variant.finish}` : ""}`,
+}));
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
