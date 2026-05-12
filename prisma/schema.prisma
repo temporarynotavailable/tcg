@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  username        String   @unique
+  displayName     String?
+  avatarUrl       String?
+  role            String   @default("BASIC_USER")
+  kycStatus       String   @default("NOT_STARTED")
+  reputationScore Int      @default(0)
+  trustLevel      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  collectionItems CollectionItem[]
+  listings        Listing[]
+  decks           Deck[]
+  createdCards    Card[]
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  sets  CardSet[]
+  cards Card[]
+  decks Deck[]
+}
+
+model CardSet {
+  id          String    @id @default(cuid())
+  gameId      String
+  name        String
+  code        String?
+  releaseDate DateTime?
+  imageUrl    String?
+
+  game  Game   @relation(fields: [gameId], references: [id])
+  cards Card[]
+
+  @@unique([gameId, name])
+}
+
+model Card {
+  id               String   @id @default(cuid())
+  gameId           String
+  setId            String?
+  name             String
+  cardNumber       String?
+  rarity           String?
+  imageUrl         String?
+  metadata         String?
+  moderationStatus String   @default("APPROVED")
+  createdByUserId  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  game          Game       @relation(fields: [gameId], references: [id])
+  set           CardSet?   @relation(fields: [setId], references: [id])
+  createdByUser User?      @relation(fields: [createdByUserId], references: [id])
+  variants      CardVariant[]
+  playRatings   CardPlayRating[]
+
+  @@index([gameId])
+  @@index([setId])
+}
+
+model CardVariant {
+  id          String   @id @default(cuid())
+  cardId      String
+  language    String
+  finish      String?
+  edition     String?
+  printing    String?
+  productType String?
+  createdAt   DateTime @default(now())
+
+  card            Card             @relation(fields: [cardId], references: [id])
+  collectionItems CollectionItem[]
+  listingItems    ListingItem[]
+  deckCards       DeckCard[]
+  priceSnapshots  PriceSnapshot[]
+
+  @@index([cardId])
+}
+
+model CollectionItem {
+  id            String   @id @default(cuid())
+  userId        String
+  cardVariantId String
+  quantity      Int      @default(1)
+  condition     String
+  acquiredPrice Float?
+  notes         String?
+  isForSale     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id])
+  cardVariant CardVariant @relation(fields: [cardVariantId], references: [id])
+
+  @@index([userId])
+  @@index([cardVariantId])
+}
+
+model Listing {
+  id          String   @id @default(cuid())
+  sellerId    String
+  listingType String
+  title       String
+  description String?
+  price       Float
+  currency    String   @default("EUR")
+  status      String   @default("DRAFT")
+  riskScore   Int      @default(0)
+  riskLevel   String   @default("LOW")
+  riskReasons String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seller     User          @relation(fields: [sellerId], references: [id])
+  items      ListingItem[]
+  binderSale BinderSale?
+
+@@index([sellerId])
+@@index([listingType])
+@@index([status])
+@@index([riskLevel])
+}
+
+model ListingItem {
+  id            String @id @default(cuid())
+  listingId     String
+  cardVariantId String
+  quantity      Int    @default(1)
+  condition     String
+  language      String?
+
+  listing     Listing     @relation(fields: [listingId], references: [id])
+  cardVariant CardVariant @relation(fields: [cardVariantId], references: [id])
+
+  @@index([listingId])
+  @@index([cardVariantId])
+}
+
+model Deck {
+  id         String   @id @default(cuid())
+  userId     String
+  gameId     String
+  name       String
+  format     String?
+  visibility String   @default("PRIVATE")
+  playRating Float?
+  isForSale  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id])
+  game  Game       @relation(fields: [gameId], references: [id])
+  cards DeckCard[]
+
+  @@index([userId])
+  @@index([gameId])
+}
+
+model DeckCard {
+  id            String @id @default(cuid())
+  deckId        String
+  cardVariantId String
+  quantity      Int
+  role          String?
+
+  deck        Deck        @relation(fields: [deckId], references: [id])
+  cardVariant CardVariant @relation(fields: [cardVariantId], references: [id])
+
+  @@index([deckId])
+  @@index([cardVariantId])
+}
+
+model BinderSale {
+  id                 String  @id @default(cuid())
+  listingId          String  @unique
+  estimatedValue     Float?
+  detectedCardCount  Int     @default(0)
+  confirmedCardCount Int     @default(0)
+
+  listing Listing           @relation(fields: [listingId], references: [id])
+  images  BinderPageImage[]
+}
+
+model BinderPageImage {
+  id           String @id @default(cuid())
+  binderSaleId String
+  imageUrl     String
+  pageNumber   Int
+
+  binderSale    BinderSale     @relation(fields: [binderSaleId], references: [id])
+  detectedCards DetectedCard[]
+}
+
+model DetectedCard {
+  id          String  @id @default(cuid())
+  imageId     String
+  cardId      String?
+  confidence  Float
+  xPosition   Float?
+  yPosition   Float?
+  needsReview Boolean @default(false)
+
+  image BinderPageImage @relation(fields: [imageId], references: [id])
+
+  @@index([imageId])
+  @@index([cardId])
+}
+
+model PriceSource {
+  id               String @id @default(cuid())
+  name             String @unique
+  region           String?
+  currency         String @default("EUR")
+  reliabilityScore Float  @default(1)
+
+  snapshots PriceSnapshot[]
+}
+
+model PriceSnapshot {
+  id              String   @id @default(cuid())
+  cardVariantId   String
+  sourceId        String
+  date            DateTime @default(now())
+  rawPrice        Float
+  normalizedPrice Float
+  currency        String   @default("EUR")
+  condition       String?
+  confidence      Float    @default(1)
+
+  cardVariant CardVariant @relation(fields: [cardVariantId], references: [id])
+  source      PriceSource @relation(fields: [sourceId], references: [id])
+
+  @@index([cardVariantId])
+  @@index([sourceId])
+  @@index([date])
+}
+
+model CardPlayRating {
+  id           String   @id @default(cuid())
+  cardId       String
+  gameId       String
+  format       String
+  rating       Float
+  usagePercent Float?
+  trend        String?
+  lastUpdated  DateTime @default(now())
+
+  card Card @relation(fields: [cardId], references: [id])
+
+  @@index([cardId])
+  @@index([gameId])
+}
