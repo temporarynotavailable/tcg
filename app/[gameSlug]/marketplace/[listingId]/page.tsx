@@ -21,12 +21,14 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getGameByRouteSlug } from "@/lib/game-routing";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 type ListingDetailPageProps = {
   params: Promise<{
+    gameSlug: string;
     listingId: string;
   }>;
 };
@@ -46,6 +48,7 @@ async function buyListingAction(formData: FormData) {
     },
     include: {
       seller: true,
+      game: true,
       items: {
         include: {
           cardVariant: {
@@ -69,6 +72,16 @@ async function buyListingAction(formData: FormData) {
 
   if (listing.status !== "ACTIVE") {
     throw new Error("Dieses Listing ist nicht mehr aktiv.");
+  }
+
+  const effectiveGameId =
+    listing.gameId ?? listing.items[0]?.cardVariant.card.gameId ?? null;
+
+  const effectiveGameSlug =
+    listing.game?.slug ?? listing.items[0]?.cardVariant.card.game.slug ?? "POKEMON";
+
+  if (!effectiveGameId) {
+    throw new Error("Für dieses Listing konnte kein TCG ermittelt werden.");
   }
 
   const buyer = await prisma.user.upsert({
@@ -98,7 +111,7 @@ async function buyListingAction(formData: FormData) {
   });
 
   if (existingOrder) {
-    redirect("/orders");
+    redirect(`/${effectiveGameSlug}/orders`);
   }
 
   await prisma.$transaction(async (tx) => {
@@ -107,6 +120,7 @@ async function buyListingAction(formData: FormData) {
         buyerId: buyer.id,
         sellerId: listing.sellerId,
         listingId: listing.id,
+        gameId: effectiveGameId,
         status: "CREATED",
         total: listing.price,
         currency: listing.currency,
@@ -137,17 +151,21 @@ async function buyListingAction(formData: FormData) {
       },
       data: {
         status: "SOLD",
+        gameId: effectiveGameId,
       },
     });
   });
 
-  revalidatePath("/marketplace");
-  revalidatePath(`/marketplace/${listing.id}`);
-  revalidatePath("/dashboard");
-  revalidatePath("/orders");
-  revalidatePath("/admin");
+revalidatePath("/marketplace");
+revalidatePath(`/marketplace/${listing.id}`);
+revalidatePath(`/${effectiveGameSlug}/marketplace`);
+revalidatePath(`/${effectiveGameSlug}/marketplace/${listing.id}`);
+revalidatePath("/dashboard");
+revalidatePath("/orders");
+revalidatePath(`/${effectiveGameSlug}/orders`);
+revalidatePath("/admin");
 
-  redirect("/orders");
+  redirect(`/${effectiveGameSlug}/orders`);
 }
 
 function formatCurrency(value: number) {
@@ -236,7 +254,9 @@ function getTrendFromMetadata(metadata: string | null) {
 export default async function ListingDetailPage({
   params,
 }: ListingDetailPageProps) {
-  const { listingId } = await params;
+  const { gameSlug, listingId } = await params;
+
+  const selectedGame = await getGameByRouteSlug(gameSlug);
 
   const listing = await prisma.listing.findUnique({
     where: {
@@ -281,7 +301,9 @@ export default async function ListingDetailPage({
   if (!listing) {
     notFound();
   }
-
+if (listing.gameId !== selectedGame.id) {
+  notFound();
+}
   const ListingTypeIcon = getListingTypeIcon(listing.listingType);
   const trustLabel = getTrustLabel(
     listing.seller.role,
@@ -315,7 +337,7 @@ export default async function ListingDetailPage({
       <section className="mx-auto max-w-7xl px-6 py-10">
         <div className="mb-8">
           <Button variant="outline" asChild>
-            <Link href="/marketplace">
+            <Link href={`/${selectedGame.slug}/marketplace`}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Zurück zum Marketplace
             </Link>
@@ -370,11 +392,9 @@ export default async function ListingDetailPage({
                     {formatListingType(listing.listingType)}
                   </Badge>
 
-                  {firstCard?.game?.name && (
-                    <Badge variant="outline" className="rounded-full">
-                      {firstCard.game.name}
-                    </Badge>
-                  )}
+ <Badge variant="outline" className="rounded-full">
+  {selectedGame.name}
+</Badge>
 
                   {listing.seller.kycStatus === "VERIFIED" && (
                     <Badge

@@ -84,7 +84,7 @@ export default function Home() {
             </Button>
 
             <Button size="lg" variant="outline" asChild>
-              <Link href="/marketplace">Marketplace entdecken</Link>
+              <Link href="/pokemon/marketplace">Marketplace entdecken</Link>
             </Button>
           </div>
 

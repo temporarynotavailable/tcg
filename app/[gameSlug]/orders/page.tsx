@@ -15,20 +15,30 @@ import {
 } from "lucide-react";
 
 import { CardImagePreview } from "@/components/cards/card-image-preview";
+import { GameAreaSwitcher } from "@/components/games/game-area-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  getGameByRouteSlug,
+  getGamesForNavigation,
+} from "@/lib/game-routing";
 import { prisma } from "@/lib/prisma";
 import { calculateTrustLevel, clampReputationScore } from "@/lib/trust";
 
 export const dynamic = "force-dynamic";
-
+type OrdersPageProps = {
+  params: Promise<{
+    gameSlug: string;
+  }>;
+};
 async function updateOrderStatusAction(formData: FormData) {
   "use server";
 
   const orderId = String(formData.get("orderId") ?? "").trim();
   const nextStatus = String(formData.get("nextStatus") ?? "").trim();
+  const gameSlug = String(formData.get("gameSlug") ?? "").trim();
 
   if (!orderId) {
     throw new Error("Order ID fehlt.");
@@ -108,10 +118,15 @@ async function updateOrderStatusAction(formData: FormData) {
     }
   });
 
-  revalidatePath("/orders");
-  revalidatePath("/dashboard");
-  revalidatePath("/profile");
-  revalidatePath("/admin");
+revalidatePath("/orders");
+
+if (gameSlug) {
+  revalidatePath(`/${gameSlug}/orders`);
+}
+
+revalidatePath("/dashboard");
+revalidatePath("/profile");
+revalidatePath("/admin");
 }
 
 async function createTradeReviewAction(formData: FormData) {
@@ -120,6 +135,7 @@ async function createTradeReviewAction(formData: FormData) {
   const orderId = String(formData.get("orderId") ?? "").trim();
   const ratingValue = String(formData.get("rating") ?? "").trim();
   const comment = String(formData.get("comment") ?? "").trim();
+  const gameSlug = String(formData.get("gameSlug") ?? "").trim();
 
   const rating = Number(ratingValue);
 
@@ -188,10 +204,15 @@ async function createTradeReviewAction(formData: FormData) {
     });
   });
 
-  revalidatePath("/orders");
-  revalidatePath("/dashboard");
-  revalidatePath("/profile");
-  revalidatePath("/admin");
+revalidatePath("/orders");
+
+if (gameSlug) {
+  revalidatePath(`/${gameSlug}/orders`);
+}
+
+revalidatePath("/dashboard");
+revalidatePath("/profile");
+revalidatePath("/admin");
 }
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("de-DE", {
@@ -421,8 +442,15 @@ function OrderStatusStepper({ status }: { status: string }) {
   );
 }
 
-export default async function OrdersPage() {
+export default async function OrdersPage({ params }: OrdersPageProps) {
+  const { gameSlug } = await params;
+
+  const selectedGame = await getGameByRouteSlug(gameSlug);
+  const games = await getGamesForNavigation();
 const orders = await prisma.tradeOrder.findMany({
+  where: {
+    gameId: selectedGame.id,
+  },
   orderBy: {
     createdAt: "desc",
   },
@@ -460,34 +488,43 @@ const orders = await prisma.tradeOrder.findMany({
     .filter((order) => order.status === "COMPLETED")
     .reduce((sum, order) => sum + order.total, 0);
 
-  return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <SiteHeader />
+return (
+  <main className="min-h-screen bg-slate-50 text-slate-950">
+    <SiteHeader />
 
-      <section className="mx-auto max-w-7xl px-6 py-10">
+    <section className="mx-auto max-w-7xl px-6 pt-8">
+<GameAreaSwitcher
+  games={games}
+  selectedGame={selectedGame}
+  sectionPath="/orders"
+/>
+    </section>
+
+    <section className="mx-auto max-w-7xl px-6 py-10">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <Badge className="mb-4 rounded-full px-4 py-1">
               Orders v0.2 · Status Workflow
             </Badge>
 
-            <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-              Bestellungen
-            </h1>
+<h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
+  Bestellungen
+</h1>
 
-            <p className="mt-3 max-w-2xl text-slate-600">
-              Bestellungen können jetzt durch einen simulierten Status-Workflow
-              laufen: erstellt, bezahlt, versendet und abgeschlossen.
-            </p>
+<p className="mt-3 max-w-2xl text-slate-600">
+  Bestellungen werden jetzt nach aktivem TCG gefiltert. Aktuell angezeigt:{" "}
+  <span className="font-medium text-slate-950">{selectedGame.name}</span>.
+  Der Status-Workflow bleibt pro TCG sauber getrennt.
+</p>
           </div>
 
           <div className="flex gap-3">
             <Button variant="outline" asChild>
-              <Link href="/marketplace">Marketplace</Link>
+              <Link href={`/${selectedGame.slug}/marketplace`}>Marketplace</Link>
             </Button>
 
             <Button asChild>
-              <Link href="/dashboard">
+              <Link href={`/dashboard?game=${selectedGame.slug}`}>
                 Dashboard
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -502,11 +539,11 @@ const orders = await prisma.tradeOrder.findMany({
                 <ReceiptText className="h-5 w-5" />
               </div>
 
-              <p className="text-sm text-slate-500">Orders</p>
-              <p className="mt-2 text-3xl font-semibold">{orders.length}</p>
-              <p className="mt-4 text-sm text-slate-500">
-                Gesamtvolumen {formatCurrency(totalVolume)}
-              </p>
+<p className="text-sm text-slate-500">Orders</p>
+<p className="mt-2 text-3xl font-semibold">{orders.length}</p>
+<p className="mt-4 text-sm text-slate-500">
+  {selectedGame.name} · {formatCurrency(totalVolume)}
+  </p>
             </CardContent>
           </Card>
 
@@ -657,8 +694,9 @@ const orders = await prisma.tradeOrder.findMany({
         </p>
       </div>
     ) : (
-      <form action={createTradeReviewAction} className="space-y-4">
-        <input type="hidden" name="orderId" value={order.id} />
+<form action={createTradeReviewAction} className="space-y-4">
+  <input type="hidden" name="orderId" value={order.id} />
+  <input type="hidden" name="gameSlug" value={selectedGame.slug} />
 
         <div>
           <p className="font-medium">Verkäufer bewerten</p>
@@ -747,7 +785,11 @@ const orders = await prisma.tradeOrder.findMany({
                                   name="nextStatus"
                                   value={action.nextStatus}
                                 />
-
+                                <input
+  type="hidden"
+  name="gameSlug"
+  value={selectedGame.slug}
+/>
                                 <Button
                                   className="w-full"
                                   variant={action.variant}
@@ -767,7 +809,7 @@ const orders = await prisma.tradeOrder.findMany({
                           )}
 
                           <Button variant="outline" asChild>
-                            <Link href={`/marketplace/${order.listing.id}`}>
+                            <Link href={`/${selectedGame.slug}/marketplace/${order.listing.id}`}>
                               Listing ansehen
                             </Link>
                           </Button>

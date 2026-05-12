@@ -1,14 +1,17 @@
-import { GameSwitcher } from "@/components/games/game-switcher";
+import { GameAreaSwitcher } from "@/components/games/game-area-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
 import { MarketplaceOverview } from "@/components/marketplace/marketplace-overview";
-import { getAvailableGames, getSelectedGame } from "@/lib/game-scope";
+import {
+  getGameByRouteSlug,
+  getGamesForNavigation,
+} from "@/lib/game-routing";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-type MarketplacePageProps = {
-  searchParams?: Promise<{
-    game?: string;
+type GameMarketplacePageProps = {
+  params: Promise<{
+    gameSlug: string;
   }>;
 };
 
@@ -75,35 +78,13 @@ function getListingMeta(listing: {
   return "Marketplace Listing";
 }
 
-function getGameName(listing: {
-  game: {
-    name: string;
-  } | null;
-  items: {
-    cardVariant: {
-      card: {
-        game: {
-          name: string;
-        };
-      };
-    };
-  }[];
-}) {
-  if (listing.game?.name) return listing.game.name;
+export default async function GameMarketplacePage({
+  params,
+}: GameMarketplacePageProps) {
+  const { gameSlug } = await params;
 
-  const firstGame = listing.items[0]?.cardVariant.card.game.name;
-
-  if (firstGame) return firstGame;
-
-  return "Unknown";
-}
-
-export default async function MarketplacePage({
-  searchParams,
-}: MarketplacePageProps) {
-  const resolvedSearchParams = await searchParams;
-  const selectedGame = await getSelectedGame(resolvedSearchParams);
-  const games = await getAvailableGames();
+  const selectedGame = await getGameByRouteSlug(gameSlug);
+  const games = await getGamesForNavigation();
 
   const listings = await prisma.listing.findMany({
     where: {
@@ -146,7 +127,7 @@ export default async function MarketplacePage({
       id: listing.id,
       title: listing.title,
       imageUrl: firstCard?.imageUrl ?? null,
-      game: getGameName(listing),
+      game: selectedGame.name,
       type: formatListingType(listing.listingType),
       seller: listing.seller.displayName ?? listing.seller.username,
       trust: getTrustLabel(listing.seller.role, listing.seller.kycStatus),
@@ -164,14 +145,17 @@ export default async function MarketplacePage({
       <SiteHeader />
 
       <section className="mx-auto max-w-7xl px-6 pt-8">
-        <GameSwitcher
+        <GameAreaSwitcher
           games={games}
           selectedGame={selectedGame}
-          pathname="/marketplace"
+          sectionPath="/marketplace"
         />
       </section>
 
-      <MarketplaceOverview listings={marketplaceListings} />
+      <MarketplaceOverview
+        listings={marketplaceListings}
+        basePath={`/${selectedGame.slug}/marketplace`}
+      />
     </main>
   );
 }

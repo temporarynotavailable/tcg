@@ -39,6 +39,7 @@ type MarketplaceListing = {
 
 type MarketplaceOverviewProps = {
   listings: MarketplaceListing[];
+  basePath?: string;
 };
 
 function formatCurrency(value: number) {
@@ -65,7 +66,10 @@ function getTrustBadgeClass(trust: string) {
   return "bg-amber-50 text-amber-700 border-amber-200";
 }
 
-export function MarketplaceOverview({ listings }: MarketplaceOverviewProps) {
+export function MarketplaceOverview({
+  listings,
+  basePath = "/marketplace",
+}: MarketplaceOverviewProps) {
   const [query, setQuery] = useState("");
   const [selectedGame, setSelectedGame] = useState("Alle");
   const [selectedType, setSelectedType] = useState("Alle");
@@ -314,7 +318,7 @@ export function MarketplaceOverview({ listings }: MarketplaceOverviewProps) {
 
                     <div className="mt-5 flex gap-3">
 <Button className="flex-1" asChild>
-  <Link href={`/marketplace/${listing.id}`}>Details ansehen</Link>
+  <Link href={`${basePath}/${listing.id}`}>Details ansehen</Link>
 </Button>
 
 <Button variant="outline" className="flex-1">

@@ -29,6 +29,11 @@ type CardOption = {
 
 type SellOverviewProps = {
   cardOptions: CardOption[];
+  selectedGame: {
+    id: string;
+    name: string;
+    slug: string;
+  };
 };
 
 const listingTypes = [
@@ -93,7 +98,10 @@ const steps = [
   },
 ];
 
-export function SellOverview({ cardOptions }: SellOverviewProps) {
+export function SellOverview({
+  cardOptions,
+  selectedGame,
+}: SellOverviewProps) {
   const [selectedType, setSelectedType] = useState(listingTypes[0]);
 
   const SelectedIcon = selectedType.icon;
@@ -106,14 +114,16 @@ export function SellOverview({ cardOptions }: SellOverviewProps) {
             Sell Flow v0.2 · Database Write
           </Badge>
 
-          <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-            Was möchtest du verkaufen?
-          </h1>
+<h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
+  Was möchtest du verkaufen?
+</h1>
 
-          <p className="mt-3 max-w-2xl text-slate-600">
-            Erstelle jetzt echte Listings in deiner lokalen Prisma-Datenbank.
-            Nach dem Speichern erscheint dein Angebot direkt im Marketplace.
-          </p>
+<p className="mt-3 max-w-2xl text-slate-600">
+  Du erstellst gerade ein Listing für{" "}
+  <span className="font-medium text-slate-950">{selectedGame.name}</span>.
+  Einzelkarten, Binder, Decks und Sammlungen werden automatisch diesem TCG
+  zugeordnet.
+</p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -195,9 +205,11 @@ export function SellOverview({ cardOptions }: SellOverviewProps) {
                     {selectedType.title} verkaufen
                   </h2>
 
-                  <p className="mt-3 max-w-2xl text-slate-300">
-                    {selectedType.description}
-                  </p>
+<p className="mt-3 max-w-2xl text-slate-300">
+  {selectedType.description} Dieses Listing wird dem TCG{" "}
+  <span className="font-medium text-white">{selectedGame.name}</span>{" "}
+  zugeordnet.
+</p>
                 </div>
 
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10">
@@ -219,12 +231,8 @@ export function SellOverview({ cardOptions }: SellOverviewProps) {
               action={createListingAction}
               className="grid gap-6 bg-white p-6 lg:grid-cols-[1fr_0.8fr]"
             >
-              <input type="hidden" name="listingType" value={selectedType.id} />
-<input
-  type="hidden"
-  name="gameId"
-  value={cardOptions[0]?.gameId ?? ""}
-/>
+<input type="hidden" name="listingType" value={selectedType.id} />
+<input type="hidden" name="gameId" value={selectedGame.id} />
               <div>
                 <h3 className="text-lg font-semibold">Listing Details</h3>
 
@@ -262,7 +270,7 @@ export function SellOverview({ cardOptions }: SellOverviewProps) {
 
                       {cardOptions.length === 0 && (
                         <p className="mt-2 text-sm text-amber-600">
-                          Keine freigegebenen Kartenvarianten gefunden. Bitte erst Karten im Admin-Bereich freigeben.
+                          Keine freigegebenen Kartenvarianten für dieses TCG gefunden. Bitte erst Karten im Admin-Bereich freigeben oder eine neue Karte vorschlagen.
                         </p>
                       )}
                     </div>
@@ -356,7 +364,7 @@ direkt aktiv oder landet in der Review Queue.
               </div>
 
               <div className="text-sm font-medium text-slate-700">
-                Seller: CardVault · Status: automatisch per Risk Score
+                Seller: CardVault · TCG: {selectedGame.name} · Status: automatisch per Risk Score
               </div>
             </div>
           </CardContent>

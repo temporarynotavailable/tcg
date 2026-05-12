@@ -125,5 +125,19 @@ data: {
   revalidatePath("/sell");
   revalidatePath("/admin");
 
-  redirect(risk.recommendedStatus === "ACTIVE" ? "/marketplace" : "/admin");
+  const selectedGame = gameId
+  ? await prisma.game.findUnique({
+      where: {
+        id: gameId,
+      },
+    })
+  : null;
+
+const gameQuery = selectedGame?.slug ? `?game=${selectedGame.slug}` : "";
+
+redirect(
+  risk.recommendedStatus === "ACTIVE"
+    ? `/marketplace${gameQuery}`
+    : "/admin",
+);
 }

@@ -15,14 +15,20 @@ import {
   Truck,
 } from "lucide-react";
 
+import { GameSwitcher } from "@/components/games/game-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
+import { getAvailableGames, getSelectedGame } from "@/lib/game-scope";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
-
+type DashboardPageProps = {
+  searchParams?: Promise<{
+    game?: string;
+  }>;
+};
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
@@ -69,18 +75,26 @@ function getOrderStatusBadgeClass(status: string) {
 
   return "border-slate-200 bg-white text-slate-700";
 }
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const selectedGame = await getSelectedGame(resolvedSearchParams);
+  const games = await getAvailableGames();
   const user = await prisma.user.findFirst({
     orderBy: {
       createdAt: "asc",
     },
   });
 
-  const collectionItems = await prisma.collectionItem.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
+const collectionItems = await prisma.collectionItem.findMany({
+  where: {
+    gameId: selectedGame.id,
+  },
+  orderBy: {
+    createdAt: "desc",
+  },
+  include: {
       cardVariant: {
         include: {
           priceSnapshots: {
@@ -106,19 +120,23 @@ export default async function DashboardPage() {
     },
   });
 
-  const activeListings = await prisma.listing.findMany({
-    where: {
-      status: "ACTIVE",
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      seller: true,
-    },
-  });
+const activeListings = await prisma.listing.findMany({
+  where: {
+    status: "ACTIVE",
+    gameId: selectedGame.id,
+  },
+  orderBy: {
+    createdAt: "desc",
+  },
+  include: {
+    seller: true,
+  },
+});
 
 const decks = await prisma.deck.findMany({
+  where: {
+    gameId: selectedGame.id,
+  },
   orderBy: {
     createdAt: "desc",
   },
@@ -129,6 +147,9 @@ const decks = await prisma.deck.findMany({
 });
 
 const orders = await prisma.tradeOrder.findMany({
+  where: {
+    gameId: selectedGame.id,
+  },
   orderBy: {
     createdAt: "desc",
   },
@@ -240,18 +261,18 @@ return {
   });
 
 const stats = [
-  {
-    label: "Portfolio Value",
-    value: formatCurrency(totalCollectionValue),
-    change: `${priceSourceCount} Preisquellen vorbereitet`,
-    icon: BarChart3,
-  },
-  {
-    label: "Cards in Collection",
-    value: String(totalCards),
-    change: `${collectionItems.length} Collection Items`,
-    icon: Boxes,
-  },
+{
+  label: "Portfolio Value",
+  value: formatCurrency(totalCollectionValue),
+  change: `${selectedGame.name} · ${priceSourceCount} Preisquellen`,
+  icon: BarChart3,
+},
+{
+  label: "Cards in Collection",
+  value: String(totalCards),
+  change: `${collectionItems.length} Items in ${selectedGame.name}`,
+  icon: Boxes,
+},
   {
     label: "Trust Status",
     value: trustStatus,
@@ -260,12 +281,12 @@ const stats = [
       : "Kein Demo-User gefunden",
     icon: ShieldCheck,
   },
-  {
-    label: "Open Orders",
-    value: String(openOrders),
-    change: `${formatCurrency(orderVolume)} Order Volume`,
-    icon: ReceiptText,
-  },
+{
+  label: "Open Orders",
+  value: String(openOrders),
+  change: `${formatCurrency(orderVolume)} ${selectedGame.name} Volume`,
+  icon: ReceiptText,
+},
 ];
 
   const actions = [
@@ -292,34 +313,44 @@ const stats = [
     },
   ];
 
-  return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <SiteHeader />
+return (
+  <main className="min-h-screen bg-slate-50 text-slate-950">
+    <SiteHeader />
 
-      <section className="mx-auto max-w-7xl px-6 py-10">
+    <section className="mx-auto max-w-7xl px-6 pt-8">
+      <GameSwitcher
+        games={games}
+        selectedGame={selectedGame}
+        pathname="/dashboard"
+      />
+    </section>
+
+    <section className="mx-auto max-w-7xl px-6 py-10">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <Badge className="mb-4 rounded-full px-4 py-1">
               Dashboard v0.2 · Database Connected
             </Badge>
 
-            <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-              Willkommen zurück{user?.displayName ? `, ${user.displayName}` : ""}.
-            </h1>
+<h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
+  Willkommen zurück{user?.displayName ? `, ${user.displayName}` : ""}.
+</h1>
 
-            <p className="mt-3 max-w-2xl text-slate-600">
-              Dein Dashboard liest jetzt echte Daten aus Prisma: Sammlung,
-              Listings, Decks, Preisquellen, Trust-Level und Play Ratings.
-            </p>
+<p className="mt-3 max-w-2xl text-slate-600">
+  Dein Dashboard zeigt jetzt nur Daten für{" "}
+  <span className="font-medium text-slate-950">{selectedGame.name}</span>.
+  Sammlung, Listings, Orders, Decks, Preisquellen, Trust-Level und Play Ratings
+  werden nach aktivem TCG gefiltert.
+</p>
           </div>
 
           <div className="flex gap-3">
             <Button variant="outline" asChild>
-              <Link href="/marketplace">Marketplace</Link>
+              <Link href={`/${selectedGame.slug}/marketplace`}>Marketplace</Link>
             </Button>
 
             <Button asChild>
-              <Link href="/sell">
+              <Link href={`/sell?game=${selectedGame.slug}`}>
                 Neues Listing
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -369,7 +400,7 @@ const stats = [
                 </div>
 
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/collection">Sammlung öffnen</Link>
+                  <Link href={`/collection?game=${selectedGame.slug}`}>Sammlung öffnen</Link>
                 </Button>
               </div>
 
@@ -564,7 +595,7 @@ const stats = [
       </div>
 
       <Button variant="outline" size="sm" asChild>
-        <Link href="/orders">Alle Bestellungen ansehen</Link>
+        <Link href={`/${selectedGame.slug}/orders`}>Alle Bestellungen ansehen</Link>
       </Button>
     </div>
 

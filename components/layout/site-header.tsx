@@ -25,7 +25,7 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    href: "/marketplace",
+    href: "/pokemon/marketplace",
     label: "Marketplace",
     icon: Search,
   },
@@ -45,7 +45,7 @@ const navItems = [
   icon: ShoppingBag,
 },
 {
-  href: "/orders",
+  href: "/pokemon/orders",
   label: "Orders",
   icon: ReceiptText,
 },
