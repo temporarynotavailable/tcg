@@ -56,7 +56,15 @@ export async function updateCardModerationStatusAction(formData: FormData) {
   });
 
   revalidatePath("/admin");
-  revalidatePath("/collection");
-  revalidatePath("/collection/add");
+revalidatePath("/pokemon/collection");
+revalidatePath("/one-piece/collection");
+revalidatePath("/magic/collection");
+revalidatePath("/lorcana/collection");
+revalidatePath("/yu-gi-oh/collection");
+  revalidatePath("/pokemon/collection/add");
+revalidatePath("/one-piece/collection/add");
+revalidatePath("/magic/collection/add");
+revalidatePath("/lorcana/collection/add");
+revalidatePath("/yu-gi-oh/collection/add");
   revalidatePath("/marketplace");
 }

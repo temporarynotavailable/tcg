@@ -77,7 +77,7 @@ export default function Home() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button size="lg" asChild>
-              <Link href="/dashboard">
+              <Link href="/pokemon/dashboard">
                 Dashboard ansehen
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>

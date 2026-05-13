@@ -15,9 +15,12 @@ import {
   Truck,
 } from "lucide-react";
 
-import { GameSwitcher } from "@/components/games/game-switcher";
+import { GameAreaSwitcher } from "@/components/games/game-area-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
-import { getAvailableGames, getSelectedGame } from "@/lib/game-scope";
+import {
+  getGameByRouteSlug,
+  getGamesForNavigation,
+} from "@/lib/game-routing";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,8 +28,8 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 type DashboardPageProps = {
-  searchParams?: Promise<{
-    game?: string;
+  params: Promise<{
+    gameSlug: string;
   }>;
 };
 function formatCurrency(value: number) {
@@ -76,11 +79,12 @@ function getOrderStatusBadgeClass(status: string) {
   return "border-slate-200 bg-white text-slate-700";
 }
 export default async function DashboardPage({
-  searchParams,
+  params,
 }: DashboardPageProps) {
-  const resolvedSearchParams = await searchParams;
-  const selectedGame = await getSelectedGame(resolvedSearchParams);
-  const games = await getAvailableGames();
+  const { gameSlug } = await params;
+
+  const selectedGame = await getGameByRouteSlug(gameSlug);
+  const games = await getGamesForNavigation();
   const user = await prisma.user.findFirst({
     orderBy: {
       createdAt: "asc",
@@ -295,21 +299,21 @@ const stats = [
       description:
         "Füge Karten später per AI-Erkennung direkt zu deiner Sammlung hinzu.",
       icon: Bot,
-      href: "/collection",
+      href: `/${selectedGame.slug}/collection`,
     },
     {
       title: "Deck bauen",
       description:
         "Erstelle Turnierdecks und prüfe, welche Karten dir noch fehlen.",
       icon: Trophy,
-      href: "/decks",
+      href: `/${selectedGame.slug}/decks`,
     },
     {
       title: "Verkaufen",
       description:
         "Starte ein Listing für Einzelkarten, Decks, Binder oder Sammlungen.",
       icon: CreditCard,
-      href: "/sell",
+      href: `/${selectedGame.slug}/sell`,
     },
   ];
 
@@ -318,11 +322,11 @@ return (
     <SiteHeader />
 
     <section className="mx-auto max-w-7xl px-6 pt-8">
-      <GameSwitcher
-        games={games}
-        selectedGame={selectedGame}
-        pathname="/dashboard"
-      />
+<GameAreaSwitcher
+  games={games}
+  selectedGame={selectedGame}
+  sectionPath="/dashboard"
+/>
     </section>
 
     <section className="mx-auto max-w-7xl px-6 py-10">
@@ -350,7 +354,7 @@ return (
             </Button>
 
             <Button asChild>
-              <Link href={`/sell?game=${selectedGame.slug}`}>
+              <Link href={`/${selectedGame.slug}/sell`}>
                 Neues Listing
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -400,7 +404,7 @@ return (
                 </div>
 
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/collection?game=${selectedGame.slug}`}>Sammlung öffnen</Link>
+                  <Link href={`/${selectedGame.slug}/collection`}>Sammlung öffnen</Link>
                 </Button>
               </div>
 

@@ -1,14 +1,17 @@
 import { CollectionOverview } from "@/components/collection/collection-overview";
-import { GameSwitcher } from "@/components/games/game-switcher";
+import { GameAreaSwitcher } from "@/components/games/game-area-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
-import { getAvailableGames, getSelectedGame } from "@/lib/game-scope";
+import {
+  getGameByRouteSlug,
+  getGamesForNavigation,
+} from "@/lib/game-routing";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-type CollectionPageProps = {
-  searchParams?: Promise<{
-    game?: string;
+type GameCollectionPageProps = {
+  params: Promise<{
+    gameSlug: string;
   }>;
 };
 
@@ -30,12 +33,13 @@ function getCardStatus(playRating: number) {
   return "Collector card";
 }
 
-export default async function CollectionPage({
-  searchParams,
-}: CollectionPageProps) {
-  const resolvedSearchParams = await searchParams;
-  const selectedGame = await getSelectedGame(resolvedSearchParams);
-  const games = await getAvailableGames();
+export default async function GameCollectionPage({
+  params,
+}: GameCollectionPageProps) {
+  const { gameSlug } = await params;
+
+  const selectedGame = await getGameByRouteSlug(gameSlug);
+  const games = await getGamesForNavigation();
 
   const collectionItems = await prisma.collectionItem.findMany({
     where: {
@@ -83,7 +87,7 @@ export default async function CollectionPage({
       id: item.id,
       name: card.name,
       imageUrl: card.imageUrl,
-      game: card.game.name,
+      game: selectedGame.name,
       set: card.set?.name ?? "Unknown Set",
       number: card.cardNumber ?? "—",
       condition: item.condition,
@@ -101,14 +105,17 @@ export default async function CollectionPage({
       <SiteHeader />
 
       <section className="mx-auto max-w-7xl px-6 pt-8">
-        <GameSwitcher
+        <GameAreaSwitcher
           games={games}
           selectedGame={selectedGame}
-          pathname="/collection"
+          sectionPath="/collection"
         />
       </section>
 
-      <CollectionOverview cards={cards} />
+      <CollectionOverview
+        cards={cards}
+        basePath={`/${selectedGame.slug}/collection`}
+      />
     </main>
   );
 }

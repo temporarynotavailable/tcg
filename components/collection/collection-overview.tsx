@@ -37,6 +37,7 @@ type CollectionCard = {
 
 type CollectionOverviewProps = {
   cards: CollectionCard[];
+  basePath?: string;
 };
 
 const games = ["Alle", "Pokémon", "One Piece Card Game", "Magic: The Gathering", "Disney Lorcana", "Yu-Gi-Oh!"];
@@ -55,7 +56,10 @@ function formatCondition(condition: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function CollectionOverview({ cards }: CollectionOverviewProps) {
+export function CollectionOverview({
+  cards,
+  basePath = "/pokemon/collection",
+}: CollectionOverviewProps) {
   const [query, setQuery] = useState("");
   const [selectedGame, setSelectedGame] = useState("Alle");
 
@@ -109,14 +113,14 @@ export function CollectionOverview({ cards }: CollectionOverviewProps) {
 </Button>
 
 <Button variant="outline" asChild>
-  <Link href="/collection/suggest">
+  <Link href={`${basePath}/suggest`}>
     <FilePlus2 className="mr-2 h-4 w-4" />
     Neue Karte vorschlagen
   </Link>
 </Button>
 
 <Button asChild>
-  <Link href="/collection/add">
+  <Link href={`${basePath}/add`}>
     <Plus className="mr-2 h-4 w-4" />
     Karte hinzufügen
   </Link>

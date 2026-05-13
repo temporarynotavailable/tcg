@@ -125,19 +125,23 @@ data: {
   revalidatePath("/sell");
   revalidatePath("/admin");
 
-  const selectedGame = gameId
-  ? await prisma.game.findUnique({
-      where: {
-        id: gameId,
-      },
-    })
-  : null;
+const selectedGame = await prisma.game.findUnique({
+  where: {
+    id: gameId,
+  },
+});
 
-const gameQuery = selectedGame?.slug ? `?game=${selectedGame.slug}` : "";
+if (!selectedGame) {
+  throw new Error("TCG wurde nicht gefunden.");
+}
+
+revalidatePath(`/${selectedGame.slug}/marketplace`);
+revalidatePath(`/${selectedGame.slug}/sell`);
+revalidatePath("/admin");
 
 redirect(
   risk.recommendedStatus === "ACTIVE"
-    ? `/marketplace${gameQuery}`
+    ? `/${selectedGame.slug}/marketplace`
     : "/admin",
 );
 }

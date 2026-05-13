@@ -87,9 +87,21 @@ export async function suggestCardAction(formData: FormData) {
   });
 
   revalidatePath("/admin");
-  revalidatePath("/collection");
-  revalidatePath("/collection/add");
-  revalidatePath("/collection/suggest");
+revalidatePath("/pokemon/collection");
+revalidatePath("/one-piece/collection");
+revalidatePath("/magic/collection");
+revalidatePath("/lorcana/collection");
+revalidatePath("/yu-gi-oh/collection");
+revalidatePath("/pokemon/collection/add");
+revalidatePath("/pokemon/collection/suggest");
+revalidatePath("/one-piece/collection/add");
+revalidatePath("/one-piece/collection/suggest");
+revalidatePath("/magic/collection/add");
+revalidatePath("/magic/collection/suggest");
+revalidatePath("/lorcana/collection/add");
+revalidatePath("/lorcana/collection/suggest");
+revalidatePath("/yu-gi-oh/collection/add");
+revalidatePath("/yu-gi-oh/collection/suggest");
 
   redirect("/admin");
 }

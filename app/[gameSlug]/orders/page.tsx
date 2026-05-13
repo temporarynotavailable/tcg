@@ -524,7 +524,7 @@ return (
             </Button>
 
             <Button asChild>
-              <Link href={`/dashboard?game=${selectedGame.slug}`}>
+              <Link href={`/${selectedGame.slug}/dashboard`}>
                 Dashboard
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>

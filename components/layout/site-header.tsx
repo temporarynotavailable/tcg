@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   {
-    href: "/dashboard",
+    href: "/pokemon/dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
   },
@@ -30,7 +30,7 @@ const navItems = [
     icon: Search,
   },
   {
-    href: "/collection",
+    href: "/pokemon/collection",
     label: "Collection",
     icon: Boxes,
   },
@@ -40,7 +40,7 @@ const navItems = [
     icon: Trophy,
   },
 {
-  href: "/sell",
+  href: "/pokemon/sell",
   label: "Sell",
   icon: ShoppingBag,
 },

@@ -1,21 +1,25 @@
-import { GameSwitcher } from "@/components/games/game-switcher";
+import { GameAreaSwitcher } from "@/components/games/game-area-switcher";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SellOverview } from "@/components/sell/sell-overview";
-import { getAvailableGames, getSelectedGame } from "@/lib/game-scope";
+import {
+  getGameByRouteSlug,
+  getGamesForNavigation,
+} from "@/lib/game-routing";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-type SellPageProps = {
-  searchParams?: Promise<{
-    game?: string;
+type GameSellPageProps = {
+  params: Promise<{
+    gameSlug: string;
   }>;
 };
 
-export default async function SellPage({ searchParams }: SellPageProps) {
-  const resolvedSearchParams = await searchParams;
-  const selectedGame = await getSelectedGame(resolvedSearchParams);
-  const games = await getAvailableGames();
+export default async function GameSellPage({ params }: GameSellPageProps) {
+  const { gameSlug } = await params;
+
+  const selectedGame = await getGameByRouteSlug(gameSlug);
+  const games = await getGamesForNavigation();
 
   const cardVariants = await prisma.cardVariant.findMany({
     where: {
@@ -50,10 +54,10 @@ export default async function SellPage({ searchParams }: SellPageProps) {
       <SiteHeader />
 
       <section className="mx-auto max-w-7xl px-6 pt-8">
-        <GameSwitcher
+        <GameAreaSwitcher
           games={games}
           selectedGame={selectedGame}
-          pathname="/sell"
+          sectionPath="/sell"
         />
       </section>
 

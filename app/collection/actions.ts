@@ -53,7 +53,11 @@ const cardVariant = await prisma.cardVariant.findUnique({
     id: cardVariantId,
   },
   include: {
-    card: true,
+    card: {
+      include: {
+        game: true,
+      },
+    },
   },
 });
 
@@ -94,9 +98,10 @@ await prisma.collectionItem.create({
     });
   }
 
-  revalidatePath("/collection");
   revalidatePath("/dashboard");
   revalidatePath("/decks");
 
-  redirect("/collection");
+revalidatePath(`/${cardVariant.card.game.slug}/collection`);
+
+redirect(`/${cardVariant.card.game.slug}/collection`);
 }
