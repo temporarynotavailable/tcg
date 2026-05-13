@@ -17,8 +17,13 @@ model User {
   kycStatus       String   @default("NOT_STARTED")
   reputationScore Int      @default(0)
   trustLevel      Int      @default(0)
+  passwordHash    String?
+  favoriteGameId  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  favoriteGame    Game?                @relation("UserFavoriteGame", fields: [favoriteGameId], references: [id])
+  gamePreferences UserGamePreference[]
 
 collectionItems CollectionItem[]
 listings        Listing[]
@@ -39,6 +44,9 @@ model Game {
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+
+favoriteOfUsers User[]               @relation("UserFavoriteGame")
+userPreferences UserGamePreference[]
 
   sets            CardSet[]
   cards           Card[]
@@ -348,4 +356,20 @@ model TradeReview {
   @@index([reviewerId])
   @@index([sellerId])
   @@index([rating])
+}
+
+model UserGamePreference {
+  id         String   @id @default(cuid())
+  userId     String
+  gameId     String
+  isFavorite Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([userId])
+  @@index([gameId])
+  @@index([isFavorite])
 }
