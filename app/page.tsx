@@ -55,6 +55,14 @@ const newsFeed = [
     href: "/pokemon/marketplace",
   },
   {
+    gameSlug: "pokemon",
+    title: "Pokémon: Deckbuilding und Singles im Fokus",
+    category: "Deck Watch",
+    date: "Aktuell",
+    text: "Spielbare Karten und Sammlerfavoriten bleiben wichtige Signale für Collection und Marketplace.",
+    href: "/pokemon/decks",
+  },
+  {
     gameSlug: "one-piece",
     title: "One Piece TCG: Binder, Leaders und Set-Hype",
     category: "Market Watch",
@@ -63,12 +71,60 @@ const newsFeed = [
     href: "/one-piece/marketplace",
   },
   {
+    gameSlug: "one-piece",
+    title: "One Piece: Meta-Decks und Leaders beobachten",
+    category: "Meta Watch",
+    date: "Aktuell",
+    text: "Neue Leader und Deck Cores können stark beeinflussen, welche Karten kurzfristig gesucht werden.",
+    href: "/one-piece/decks",
+  },
+  {
     gameSlug: "magic",
     title: "Magic: Commander, Staples und Set-Rotation",
     category: "Deck Watch",
     date: "Aktuell",
     text: "Commander-Staples und neue Set-Signale können starke Auswirkungen auf Deckpreise haben.",
     href: "/magic/decks",
+  },
+  {
+    gameSlug: "magic",
+    title: "Magic: Singles und Collection-Wert im Blick",
+    category: "Collection Watch",
+    date: "Aktuell",
+    text: "Staples, Reprints und Formatbewegungen bleiben wichtig für langfristige Sammlungswerte.",
+    href: "/magic/marketplace",
+  },
+  {
+    gameSlug: "lorcana",
+    title: "Lorcana: Legendary Characters und Set-Neuheiten",
+    category: "Collector Watch",
+    date: "Aktuell",
+    text: "Neue Charakterkarten und begehrte Raritäten können schnell Aufmerksamkeit im Markt erzeugen.",
+    href: "/lorcana/marketplace",
+  },
+  {
+    gameSlug: "lorcana",
+    title: "Lorcana: Collection-Aufbau für neue Spieler",
+    category: "Collection Watch",
+    date: "Aktuell",
+    text: "Für neue Sammler ist eine saubere Set- und Kartenstruktur besonders wichtig.",
+    href: "/lorcana/collection",
+  },
+  {
+    gameSlug: "yu-gi-oh",
+    title: "Yu-Gi-Oh!: Staples, Deck Cores und Rarity-Hunting",
+    category: "Staple Watch",
+    date: "Aktuell",
+    text: "Staples und Deck Cores bleiben wichtige Bereiche für Spieler und Sammler.",
+    href: "/yu-gi-oh/marketplace",
+  },
+  {
+    gameSlug: "yu-gi-oh",
+    title: "Yu-Gi-Oh!: Deckbuilding und Meta-Kerne",
+    category: "Deck Watch",
+    date: "Aktuell",
+    text: "Deck Cores, Engines und Side-Deck-Staples sind starke Signale für den nächsten Ausbau.",
+    href: "/yu-gi-oh/decks",
   },
 ];
 
@@ -81,10 +137,24 @@ const hotPicks = [
     trend: "+",
   },
   {
+    gameSlug: "pokemon",
+    card: "Pikachu Promos",
+    reason: "Sammlerfavorit mit hoher Aufmerksamkeit",
+    signal: "Collector",
+    trend: "+",
+  },
+  {
     gameSlug: "one-piece",
     card: "OP Leaders & Alt Arts",
     reason: "Leader-Karten bleiben starke Binder- und Meta-Kandidaten",
     signal: "Meta Watch",
+    trend: "+",
+  },
+  {
+    gameSlug: "one-piece",
+    card: "Manga Rares",
+    reason: "High-End Collector Target mit starker Nachfrage",
+    signal: "Collector",
     trend: "+",
   },
   {
@@ -95,10 +165,38 @@ const hotPicks = [
     trend: "↔",
   },
   {
+    gameSlug: "magic",
+    card: "Format Staples",
+    reason: "Spielbare Karten reagieren oft stark auf Meta-Änderungen",
+    signal: "Meta",
+    trend: "+",
+  },
+  {
     gameSlug: "lorcana",
     card: "Legendary Characters",
     reason: "Sammlerinteresse und Set-Neuheiten",
     signal: "Collector",
+    trend: "+",
+  },
+  {
+    gameSlug: "lorcana",
+    card: "Enchanted Cards",
+    reason: "Premium-Raritäten bleiben für Sammler spannend",
+    signal: "Premium",
+    trend: "+",
+  },
+  {
+    gameSlug: "yu-gi-oh",
+    card: "Staple Hand Traps",
+    reason: "Spielbare Staples bleiben dauerhaft relevant",
+    signal: "Staple",
+    trend: "↔",
+  },
+  {
+    gameSlug: "yu-gi-oh",
+    card: "Deck Core Engines",
+    reason: "Meta-Kerne können kurzfristig stark nachgefragt werden",
+    signal: "Meta Watch",
     trend: "+",
   },
 ];
@@ -120,6 +218,15 @@ function sortGames<T extends { slug: string }>(games: T[]) {
   });
 }
 
+function parseSlugCookie(value: string | undefined) {
+  if (!value) return [];
+
+  return value
+    .split(",")
+    .map((slug) => slug.trim())
+    .filter(Boolean);
+}
+
 export default async function HomePage() {
   const games = await prisma.game.findMany({
     where: {
@@ -128,28 +235,46 @@ export default async function HomePage() {
   });
 
   const cookieStore = await cookies();
-const interestedGameSlugsCookie = cookieStore.get("tcg_interested_game_slugs")?.value;
 
-const interestedGameSlugs =
-  interestedGameSlugsCookie
-    ?.split(",")
-    .map((slug) => slug.trim())
-    .filter(Boolean) ?? [];
+  const interestedGameSlugs = parseSlugCookie(
+    cookieStore.get("tcg_interested_game_slugs")?.value,
+  );
 
-const visibleGames =
-  interestedGameSlugs.length > 0
-    ? games.filter((game) => interestedGameSlugs.includes(game.slug))
-    : games;
+  const favoriteGameSlugCookie = cookieStore.get("tcg_favorite_game_slug")?.value;
 
-const sortedGames = sortGames(visibleGames);
+  const visibleGames =
+    interestedGameSlugs.length > 0
+      ? games.filter((game) => interestedGameSlugs.includes(game.slug))
+      : games;
+
+  const sortedGames = sortGames(visibleGames);
+
+  const availableGameSlugs = sortedGames.map((game) => game.slug);
+
+  const fallbackGameSlug = sortedGames[0]?.slug ?? "pokemon";
+
+  const favoriteGameSlug =
+    favoriteGameSlugCookie && availableGameSlugs.includes(favoriteGameSlugCookie)
+      ? favoriteGameSlugCookie
+      : fallbackGameSlug;
+
+  const visibleNewsFeed =
+    availableGameSlugs.length > 0
+      ? newsFeed.filter((news) => availableGameSlugs.includes(news.gameSlug))
+      : newsFeed;
+
+  const visibleHotPicks =
+    availableGameSlugs.length > 0
+      ? hotPicks.filter((pick) => availableGameSlugs.includes(pick.gameSlug))
+      : hotPicks;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
       <section className="mx-auto max-w-7xl px-6 py-6 md:py-8">
-        <header className="mb-6 rounded-[2rem] border bg-white/90 p-4 shadow-sm backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white">
+        <header className="mb-6 rounded-[2rem] border bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Link href="/" className="flex shrink-0 items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white">
                 <Gamepad2 className="h-5 w-5" />
               </div>
 
@@ -163,16 +288,16 @@ const sortedGames = sortGames(visibleGames);
               </div>
             </Link>
 
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <HomePreferences />
 
               <HomeAuthActions
-  games={sortedGames.map((game) => ({
-    id: game.id,
-    name: game.name,
-    slug: game.slug,
-  }))}
-/>
+                games={sortGames(games).map((game) => ({
+                  id: game.id,
+                  name: game.name,
+                  slug: game.slug,
+                }))}
+              />
             </div>
           </div>
         </header>
@@ -193,6 +318,17 @@ const sortedGames = sortGames(visibleGames);
                 hat eigenes Dashboard, Collection, Marketplace, Sell Flow,
                 Orders und Decks.
               </p>
+
+              {interestedGameSlugs.length > 0 && (
+                <p className="mt-3 text-sm text-slate-500">
+                  Deine Startseite ist auf deine ausgewählten TCGs gefiltert.
+                  Favourite:{" "}
+                  <span className="font-medium text-slate-950">
+                    {getGameLabel(favoriteGameSlug)}
+                  </span>
+                  .
+                </p>
+              )}
             </div>
 
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-slate-950 text-white">
@@ -227,13 +363,14 @@ const sortedGames = sortGames(visibleGames);
                   </h2>
 
                   <p className="mt-2 text-sm text-slate-500">
-                    Schlanker Demo-Feed. Später können wir echte Newsquellen,
-                    Admin-News oder RSS/API-Feeds anbinden.
+                    {interestedGameSlugs.length > 0
+                      ? "Gefiltert nach deinen ausgewählten TCGs."
+                      : "Schlanker Demo-Feed. Später können wir echte Newsquellen, Admin-News oder RSS/API-Feeds anbinden."}
                   </p>
                 </div>
 
                 <Button variant="outline" asChild>
-                  <Link href="/pokemon/marketplace">
+                  <Link href={`/${favoriteGameSlug}/marketplace`}>
                     Markt beobachten
                     <Search className="ml-2 h-4 w-4" />
                   </Link>
@@ -241,7 +378,7 @@ const sortedGames = sortGames(visibleGames);
               </div>
 
               <div className="mt-6 space-y-4">
-                {newsFeed.map((news) => (
+                {visibleNewsFeed.map((news) => (
                   <Link
                     key={`${news.gameSlug}-${news.title}`}
                     href={news.href}
@@ -292,12 +429,13 @@ const sortedGames = sortGames(visibleGames);
               <h2 className="text-2xl font-semibold">Karten im Blick</h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Demo-Watchlist für Karten, Set-Themen und Archetypes mit
-                aktueller Aufmerksamkeit.
+                {interestedGameSlugs.length > 0
+                  ? "Watchlist passend zu deinen ausgewählten TCGs."
+                  : "Demo-Watchlist für Karten, Set-Themen und Archetypes mit aktueller Aufmerksamkeit."}
               </p>
 
               <div className="mt-6 space-y-3">
-                {hotPicks.map((pick) => (
+                {visibleHotPicks.map((pick) => (
                   <Link
                     key={`${pick.gameSlug}-${pick.card}`}
                     href={`/${pick.gameSlug}/marketplace`}

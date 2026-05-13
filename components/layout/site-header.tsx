@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Boxes,
+  Gamepad2,
   LayoutDashboard,
+  LogOut,
   ReceiptText,
   Search,
   ShieldCheck,
@@ -14,16 +17,39 @@ import {
   User,
 } from "lucide-react";
 
+import { logoutUserAction } from "@/app/profile/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 const GAME_SLUGS = ["pokemon", "one-piece", "magic", "lorcana", "yu-gi-oh"];
 
-function getActiveGameSlug(pathname: string) {
+type AccountState = {
+  isLoggedIn: boolean;
+  displayName: string;
+  favoriteGameSlug: string;
+};
+
+function getCookieValue(name: string) {
+  if (typeof document === "undefined") return "";
+
+  const cookie = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${name}=`));
+
+  if (!cookie) return "";
+
+  return decodeURIComponent(cookie.split("=")[1] ?? "");
+}
+
+function getActiveGameSlug(pathname: string, favoriteGameSlug: string) {
   const firstSegment = pathname.split("/").filter(Boolean)[0];
 
   if (GAME_SLUGS.includes(firstSegment)) {
     return firstSegment;
+  }
+
+  if (favoriteGameSlug && GAME_SLUGS.includes(favoriteGameSlug)) {
+    return favoriteGameSlug;
   }
 
   return "pokemon";
@@ -51,8 +77,27 @@ function isActivePath(pathname: string, href: string) {
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const activeGameSlug = getActiveGameSlug(pathname);
+
+  const [account, setAccount] = useState<AccountState>({
+    isLoggedIn: false,
+    displayName: "",
+    favoriteGameSlug: "",
+  });
+
+  useEffect(() => {
+    const displayName = getCookieValue("tcg_user_display_name");
+    const favoriteGameSlug = getCookieValue("tcg_favorite_game_slug");
+
+    setAccount({
+      isLoggedIn: Boolean(favoriteGameSlug),
+      displayName,
+      favoriteGameSlug,
+    });
+  }, [pathname]);
+
+  const activeGameSlug = getActiveGameSlug(pathname, account.favoriteGameSlug);
   const activeGameLabel = getGameLabel(activeGameSlug);
+  const favoriteGameLabel = getGameLabel(account.favoriteGameSlug || "pokemon");
 
   const gameNavItems = [
     {
@@ -102,14 +147,22 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b bg-white/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            href={`/${activeGameSlug}/dashboard`}
+            href={
+              account.isLoggedIn
+                ? `/${account.favoriteGameSlug || activeGameSlug}/dashboard`
+                : "/"
+            }
             className="flex items-center gap-3"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white">
-              <Sparkles className="h-5 w-5" />
+              {account.isLoggedIn ? (
+                <Sparkles className="h-5 w-5" />
+              ) : (
+                <Gamepad2 className="h-5 w-5" />
+              )}
             </div>
 
             <div>
@@ -117,59 +170,93 @@ export function SiteHeader() {
                 TCG Nexus
               </p>
               <p className="text-xs text-slate-500">
-                Game-scoped marketplace
+                {account.isLoggedIn
+                  ? `Aktiver Bereich: ${activeGameLabel}`
+                  : "Bitte einloggen"}
               </p>
             </div>
           </Link>
 
-          <Badge variant="outline" className="rounded-full px-3 py-1">
-            Aktiver Bereich: {activeGameLabel}
-          </Badge>
+          {account.isLoggedIn ? (
+            <>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Favourite: {favoriteGameLabel}
+              </Badge>
+
+              <Badge variant="secondary" className="rounded-full px-3 py-1">
+                {account.displayName || "Account"}
+              </Badge>
+            </>
+          ) : (
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              Nicht eingeloggt
+            </Badge>
+          )}
         </div>
 
-        <nav className="flex flex-wrap items-center gap-2">
-          {gameNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isActivePath(pathname, item.href);
+        {account.isLoggedIn ? (
+          <nav className="flex flex-wrap items-center gap-2">
+            {gameNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = isActivePath(pathname, item.href);
 
-            return (
+              return (
+                <Button
+                  key={item.href}
+                  variant={isActive ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-full"
+                  asChild
+                >
+                  <Link href={item.href}>
+                    <Icon className="mr-2 h-4 w-4" />
+                    {item.label}
+                  </Link>
+                </Button>
+              );
+            })}
+
+            <div className="mx-1 hidden h-6 w-px bg-slate-200 xl:block" />
+
+            {globalNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = isActivePath(pathname, item.href);
+
+              return (
+                <Button
+                  key={item.href}
+                  variant={isActive ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-full"
+                  asChild
+                >
+                  <Link href={item.href}>
+                    <Icon className="mr-2 h-4 w-4" />
+                    {item.label}
+                  </Link>
+                </Button>
+              );
+            })}
+
+            <form action={logoutUserAction}>
               <Button
-                key={item.href}
-                variant={isActive ? "default" : "ghost"}
+                type="submit"
+                variant="outline"
                 size="sm"
                 className="rounded-full"
-                asChild
               >
-                <Link href={item.href}>
-                  <Icon className="mr-2 h-4 w-4" />
-                  {item.label}
-                </Link>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
               </Button>
-            );
-          })}
-
-          <div className="mx-1 hidden h-6 w-px bg-slate-200 lg:block" />
-
-          {globalNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isActivePath(pathname, item.href);
-
-            return (
-              <Button
-                key={item.href}
-                variant={isActive ? "default" : "ghost"}
-                size="sm"
-                className="rounded-full"
-                asChild
-              >
-                <Link href={item.href}>
-                  <Icon className="mr-2 h-4 w-4" />
-                  {item.label}
-                </Link>
-              </Button>
-            );
-          })}
-        </nav>
+            </form>
+          </nav>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="rounded-full" asChild>
+              <Link href="/">Zur Startseite</Link>
+            </Button>
+          </div>
+        )}
       </div>
     </header>
   );

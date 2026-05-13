@@ -1,10 +1,6 @@
 "use server";
 
-import {
-  pbkdf2Sync,
-  randomBytes,
-  timingSafeEqual,
-} from "crypto";
+import { pbkdf2Sync, randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -59,8 +55,9 @@ function verifyPassword(password: string, storedHash: string) {
   return timingSafeEqual(calculatedHash, storedHashBuffer);
 }
 
-async function setUserPreferenceCookies(input: {
+async function setUserSessionCookies(input: {
   userId: string;
+  displayName: string;
   favoriteGameSlug: string;
   interestedGameSlugs: string[];
 }) {
@@ -72,15 +69,24 @@ async function setUserPreferenceCookies(input: {
     sameSite: "lax",
   });
 
+  cookieStore.set("tcg_user_display_name", input.displayName, {
+    path: "/",
+    sameSite: "lax",
+  });
+
   cookieStore.set("tcg_favorite_game_slug", input.favoriteGameSlug, {
     path: "/",
     sameSite: "lax",
   });
 
-  cookieStore.set("tcg_interested_game_slugs", input.interestedGameSlugs.join(","), {
-    path: "/",
-    sameSite: "lax",
-  });
+  cookieStore.set(
+    "tcg_interested_game_slugs",
+    input.interestedGameSlugs.join(","),
+    {
+      path: "/",
+      sameSite: "lax",
+    },
+  );
 }
 
 export async function registerUserAction(formData: FormData) {
@@ -181,8 +187,9 @@ export async function registerUserAction(formData: FormData) {
     },
   });
 
-  await setUserPreferenceCookies({
+  await setUserSessionCookies({
     userId: user.id,
+    displayName: user.displayName ?? user.username,
     favoriteGameSlug: favoriteGame.slug,
     interestedGameSlugs: games.map((game) => game.slug),
   });
@@ -248,8 +255,9 @@ export async function loginUserAction(formData: FormData) {
       ? user.gamePreferences.map((preference) => preference.game.slug)
       : [favoriteGame.slug];
 
-  await setUserPreferenceCookies({
+  await setUserSessionCookies({
     userId: user.id,
+    displayName: user.displayName ?? user.username,
     favoriteGameSlug: favoriteGame.slug,
     interestedGameSlugs,
   });
